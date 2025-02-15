@@ -1,0 +1,4 @@
+https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe
+https://download01.logi.com/web/ftp/pub/techsupport/gaming/lghub_installer.exe
+https://dl.discordapp.net/distro/app/stable/win/x64/1.0.9157/DiscordSetup.exe
+https://launcherupdates.lunarclientcdn.com/Lunar%20Client%20v3.2.15.exe
