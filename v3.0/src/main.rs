@@ -663,7 +663,7 @@ fn sys_fetch() {
     let sys_fetch_logo = vec![
         "         \x1b[91m,.=:!!t3Z3z.\x1b[92m                    ",
         "        \x1b[91m:tt:::tt333EE3\x1b[92m                   ",
-        "        \x1b[91mEt:::ztt33EEEL\x1b[92m @Ee.,     ..,    ",
+        "        \x1b[91mEt:::ztt33EEEL\x1b[92m @Ee.,      ..,    ",
         "       \x1b[91m;tt:::tt333EE7\x1b[92m ;EEEEEEttttt33#    ",
         "      \x1b[91m:Et:::zt333EEQ.\x1b[92m $EEEEEttttt33QL    ",
         "      \x1b[91mit::::tt333EEF\x1b[92m @EEEEEEttttt33F     ",
