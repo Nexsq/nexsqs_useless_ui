@@ -15,7 +15,7 @@ use chrono::Local;
 use serde_derive::{Serialize, Deserialize};
 use toml;
 use sysinfo::System;
-
+use std::net::{TcpStream, ToSocketAddrs};
 
 fn version() -> String {
     let version = "v3.0";
@@ -54,7 +54,7 @@ struct Settings {
     port_scan_delay: u32,
     micro_macro_key: String,
     micro_macro_delay: u32,
-    show_hidden_files: bool,
+    show_config_file: bool,
     custom_options: Vec<String>
 }
 impl Settings {
@@ -66,7 +66,7 @@ impl Settings {
             port_scan_delay: 500,
             micro_macro_key: "F15".to_string(),
             micro_macro_delay: 30000,
-            show_hidden_files: false,
+            show_config_file: false,
             custom_options: Vec::new()
         }
     }
@@ -78,9 +78,9 @@ impl Settings {
             {
                 use std::process::Command;
                 Command::new("attrib")
-                    .args(&["+H", dir.to_str().unwrap()])
-                    .status()
-                    .expect("Failed to set directory as hidden on Windows");
+                   .args(&["+H", dir.to_str().unwrap()])
+                   .status()
+                   .expect("Failed to set directory as hidden on Windows");
             }
         }
         if !file_path.exists() {
@@ -108,7 +108,7 @@ impl Settings {
         let toml_string = toml::to_string(self).expect("Failed to serialize settings");
         let mut file = File::create(&file_path).expect("Failed to open settings.toml for writing");
         file.write_all(toml_string.as_bytes())
-            .expect("Failed to write updated settings");
+           .expect("Failed to write updated settings");
     }
     fn set_color(&mut self, new_color: &str) {
         self.color = new_color.to_string();
@@ -134,8 +134,8 @@ impl Settings {
         self.micro_macro_delay = new_delay.clamp(0, 4294967295);
         self.save();
     }
-    fn set_show_hidden_files(&mut self, new_value: bool) {
-        self.show_hidden_files = new_value;
+    fn set_show_config_file(&mut self, new_value: bool) {
+        self.show_config_file = new_value;
         self.save();
     }
     fn add_custom_option(&mut self, path: &str) {
@@ -150,7 +150,7 @@ impl Settings {
 
 fn get_key() -> Option<KeyCode> {
     if event::poll(Duration::ZERO).unwrap() {
-        if let Event::Key(KeyEvent { code, kind, .. }) = event::read().unwrap() {
+        if let Event::Key(KeyEvent { code, kind,.. }) = event::read().unwrap() {
             if kind == KeyEventKind::Press {
                 return Some(code);
             }
@@ -207,13 +207,13 @@ fn get_color(color_type: &str) -> Color {
 fn clear() {
     if cfg!(target_os = "windows") {
         Command::new("cmd")
-            .args(&["/C", "cls"])
-            .status()
-            .expect("Failed to clear the terminal");
+           .args(&["/C", "cls"])
+           .status()
+           .expect("Failed to clear the terminal");
     } else {
         Command::new("clear")
-            .status()
-            .expect("Failed to clear the terminal");
+           .status()
+           .expect("Failed to clear the terminal");
     }
 }
 
@@ -333,47 +333,47 @@ fn render_bottom(mid_length: u16) -> String {
 }
 
 static PINGS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
-static mut SEQ: u32 = 1;
-static IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
-fn add_ping(ping: String) {
-    let (_, height) = terminal::size().unwrap();
-    let max_pings = height.saturating_sub(12).max(1) as usize;
-    let mut pings = PINGS.lock().unwrap();
-    while pings.len() > max_pings {
-        if !pings.is_empty() {
-            pings.remove(0);
-        }
-    }
-    pings.push(ping);
-}
-fn print_pings() -> usize {
-    let (width, _) = terminal::size().unwrap();
-    let mut stdout = io::stdout();
-    let start_y = 9;
-    let pings = PINGS.lock().unwrap();
-    for i in 0..pings.len() {
-        execute!(stdout, cursor::MoveTo(0, start_y + i as u16)).unwrap();
-        print!("\r│{}│", " ".repeat(width as usize - 2));
-    }
-    for (i, ping) in pings.iter().enumerate() {
-        execute!(stdout, cursor::MoveTo(2, start_y + i as u16)).unwrap();
-        print!("{}", ping);
-    }
-    stdout.flush().unwrap();
-    pings.len()
-}
-fn clear_pings() { let mut pings = PINGS.lock().unwrap(); pings.clear() }
-fn clear_seqs() { unsafe { SEQ = 1; } }
-fn set_ip() {
-    let mut ip = IP.lock().unwrap();
-    let mut new_ip = String::new();
-    io::stdin().read_line(&mut new_ip).unwrap();
-    let new_ip = new_ip.trim();
-    *ip = new_ip.to_string()
-}
-fn get_ip() -> String { let ip = IP.lock().unwrap(); ip.clone() }
-fn clear_ip() { let mut ip = IP.lock().unwrap(); *ip = String::new() }
+static PING_SEQ: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
+static PING_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 fn ping_tool() {
+    fn add_ping(ping: String) {
+        let (_, height) = terminal::size().unwrap();
+        let max_pings = height.saturating_sub(12).max(1) as usize;
+        let mut pings = PINGS.lock().unwrap();
+        while pings.len() > max_pings {
+            if !pings.is_empty() {
+                pings.remove(0);
+            }
+        }
+        pings.push(ping);
+    }
+    fn print_pings() -> usize {
+        let (width, _) = terminal::size().unwrap();
+        let mut stdout = io::stdout();
+        let start_y = 9;
+        let pings = PINGS.lock().unwrap();
+        for i in 0..pings.len() {
+            execute!(stdout, cursor::MoveTo(0, start_y + i as u16)).unwrap();
+            print!("\r│{}│", " ".repeat(width as usize - 2));
+        }
+        for (i, ping) in pings.iter().enumerate() {
+            execute!(stdout, cursor::MoveTo(2, start_y + i as u16)).unwrap();
+            print!("{}", ping);
+        }
+        stdout.flush().unwrap();
+        pings.len()
+    }
+    fn clear_pings() { let mut pings = PINGS.lock().unwrap(); pings.clear() }
+    fn clear_seqs() { let mut seq = PING_SEQ.lock().unwrap(); *seq = 1 }
+    fn set_ip() {
+        let mut ip = PING_IP.lock().unwrap();
+        let mut new_ip = String::new();
+        io::stdin().read_line(&mut new_ip).unwrap();
+        let new_ip = new_ip.trim();
+        *ip = new_ip.to_string()
+    }
+    fn get_ip() -> String { let ip = PING_IP.lock().unwrap(); ip.clone() }
+    fn clear_ip() { let mut ip = PING_IP.lock().unwrap(); *ip = String::new() }
     let mut stdout = io::stdout();
     let settings = Settings::load();
     let last_render_time = get_time();
@@ -402,16 +402,15 @@ fn ping_tool() {
     let mut last_ping = Instant::now();
     fn ping(ip: &str) -> Option<(f64, u32)> {
         let output = {
-            Command::new("ping") .arg("-n") .arg("1") .arg(ip) .output() .expect("Failed to execute ping")
+            Command::new("ping").arg("-n").arg("1").arg(ip).output().expect("Failed to execute ping")
         };
         if output.status.success() {
             let stdout = std::str::from_utf8(&output.stdout).unwrap();
-            let time = stdout.lines() .find(|line| line.contains("Average")) .and_then(|line| line.split("=").last()) .and_then(|avg| avg.trim().strip_suffix("ms")) .and_then(|ms| ms.parse::<f64>().ok());
-            let ttl = stdout.lines() .find(|line| line.contains("TTL")) .and_then(|line| line.split("TTL=").nth(1)) .and_then(|ttl| ttl.split_whitespace().next()) .and_then(|ttl| ttl.parse::<u32>().ok()) .unwrap_or(64);
+            let time = stdout.lines().find(|line| line.contains("Average")).and_then(|line| line.split("=").last()).and_then(|avg| avg.trim().strip_suffix("ms")).and_then(|ms| ms.parse::<f64>().ok());
+            let ttl = stdout.lines().find(|line| line.contains("TTL")).and_then(|line| line.split("TTL=").nth(1)).and_then(|ttl| ttl.split_whitespace().next()).and_then(|ttl| ttl.parse::<u32>().ok()).unwrap_or(64);
             if let Some(ms) = time {
                 return Some((ms, ttl));
             }
-        } else {
         }
         None
     }
@@ -431,7 +430,7 @@ fn ping_tool() {
         if last_ping.elapsed() >= Duration::from_millis(settings.ping_delay as u64) {
             match ping(ip) {
                 Some((ms, ttl)) => {
-                    let ping_data = format!("Ping to {}: {:.0} ms (seq={}, ttl={})", ip, ms, unsafe { SEQ }, ttl);
+                    let ping_data = format!("Ping to {}: {:.0} ms (seq={}, ttl={})", ip, ms, PING_SEQ.lock().unwrap(), ttl);
                     add_ping(ping_data);
                 },
                 None => {
@@ -439,7 +438,8 @@ fn ping_tool() {
                     add_ping(ping_data);
                 }
             }
-            unsafe { SEQ += 1 }
+            let mut seq = PING_SEQ.lock().unwrap();
+            *seq += 1;
             let num_pings = print_pings();
             execute!(stdout, cursor::MoveUp(num_pings as u16)).unwrap();
             last_ping = Instant::now();
@@ -453,8 +453,120 @@ fn ping_tool() {
     }
 }
 
+static PORT_SCANS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
+static PORT_NUM: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
+static PORT_SCAN_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 fn port_scan() {
-    println!("port_scan")
+    fn add_port_scan(port_scan: String) {
+        let (_, height) = terminal::size().unwrap();
+        let max_port_scans = height.saturating_sub(12).max(1) as usize;
+        let mut port_scans = PORT_SCANS.lock().unwrap();
+        while port_scans.len() > max_port_scans {
+            if !port_scans.is_empty() {
+                port_scans.remove(0);
+            }
+        }
+        port_scans.push(port_scan);
+    }
+    fn print_port_scans() -> usize {
+        let (width, _) = terminal::size().unwrap();
+        let mut stdout = io::stdout();
+        let start_y = 9;
+        let port_scans = PORT_SCANS.lock().unwrap();
+        for i in 0..port_scans.len() {
+            execute!(stdout, cursor::MoveTo(0, start_y + i as u16)).unwrap();
+            print!("\r│{}│", " ".repeat(width as usize - 2));
+        }
+        for (i, port_scan) in port_scans.iter().enumerate() {
+            execute!(stdout, cursor::MoveTo(2, start_y + i as u16)).unwrap();
+            print!("{}", port_scan);
+        }
+        stdout.flush().unwrap();
+        port_scans.len()
+    }
+    fn clear_port_scans() { let mut port_scans = PORT_SCANS.lock().unwrap(); port_scans.clear() }
+    fn clear_port_num() { let mut num = PORT_NUM.lock().unwrap(); *num = 1 }
+    fn set_ip() {
+        let mut ip = PORT_SCAN_IP.lock().unwrap();
+        let mut new_ip = String::new();
+        io::stdin().read_line(&mut new_ip).unwrap();
+        let new_ip = new_ip.trim();
+        *ip = new_ip.to_string()
+    }
+    fn get_ip() -> String { let ip = PORT_SCAN_IP.lock().unwrap(); ip.clone() }
+    fn clear_ip() { let mut ip = PORT_SCAN_IP.lock().unwrap(); *ip = String::new() }
+    let mut stdout = io::stdout();
+    let settings = Settings::load();
+    let last_render_time = get_time();
+    let (last_width, last_height) = terminal::size().unwrap();
+    let mut needs_rendering = false;
+    let mut output = String::new();
+    output.push_str(&render_top("port_scan", None, false));
+    output.push_str(&render_bottom(0));
+    clear();
+    print!("{}", output);
+    stdout.flush().unwrap();
+    execute!(stdout, cursor::MoveUp(1)).unwrap();
+    let mut ip = get_ip();
+    if ip.is_empty() {
+        print!("Pinging: ");
+        stdout.flush().unwrap();
+        set_ip();
+        ip = get_ip()
+    } else {
+        print!("Pinging: {}", ip)
+    }
+    if ip.is_empty() {
+        return
+    }
+    let ip = ip.trim();
+    let mut last_port_scan = Instant::now();
+    fn scan_ports(ip: &str, port: u32) -> Option<String> {
+        let addr = format!("{}:{}", ip, port);
+        let timeout = Duration::from_secs(1);
+        let result = TcpStream::connect_timeout(&addr.to_socket_addrs().unwrap().next().unwrap(), timeout);
+    
+        match result {
+            Ok(_) => Some(format!("Port {} is open", port)),
+            Err(_) => None,
+        }
+    }
+    print_port_scans();
+    loop {
+        if let Some(pressed_key) = get_key() {
+            needs_rendering = true;
+            match pressed_key {
+                KeyCode::Tab => { clear_port_scans(); clear_port_num(); clear_ip(); settings_menu() },
+                KeyCode::BackTab => { clear_port_scans(); clear_port_num(); clear_ip(); return },
+                KeyCode::Esc => process::exit(0),
+                KeyCode::Enter => { clear_port_scans(); clear_port_num(); clear_ip(); port_scan(); return }
+                KeyCode::Char(c) if c == ' ' => { clear_port_scans(); clear_port_num(); clear_ip(); port_scan(); return }
+                _ => {}
+            }
+        }
+        if last_port_scan.elapsed() >= Duration::from_millis(settings.port_scan_delay as u64) {
+            match scan_ports(ip, *PORT_NUM.lock().unwrap()) {
+                Some(port_scan_result) => {
+                    add_port_scan(port_scan_result);
+                },
+                None => {
+                    let port_scan_data = format!("Failed to scan port {}", *PORT_NUM.lock().unwrap());
+                    add_port_scan(port_scan_data);
+                }
+            }
+            let mut num = PORT_NUM.lock().unwrap();
+            *num += 1;
+            let num_port_scans = print_port_scans();
+            execute!(stdout, cursor::MoveUp(num_port_scans as u16)).unwrap();
+            last_port_scan = Instant::now();
+        }
+        let current_time = get_time();
+        let (width, height) = terminal::size().unwrap();
+        if width != last_width || height != last_height || current_time != last_render_time || needs_rendering {
+            port_scan();
+            return;
+        }
+    }
 }
 
 fn micro_macro() {
@@ -484,7 +596,7 @@ fn game_of_life() {
 fn sys_fetch() {
     let mut stdout = io::stdout();
     let user_name = whoami::username();
-    fn get_machine_name() -> String { { let output = Command::new("hostname") .output() .expect("Failed to get hostname"); String::from_utf8_lossy(&output.stdout).trim().to_string() } }
+    fn get_machine_name() -> String { { let output = Command::new("hostname").output().expect("Failed to get hostname"); String::from_utf8_lossy(&output.stdout).trim().to_string() } }
     let machine_name = get_machine_name();
     let os = os_info::get();
     let os_string = os.to_string();
@@ -503,13 +615,13 @@ fn sys_fetch() {
     let resolution = match resolution::current_resolution() { Ok((width, height)) => format!("{}x{}", width, height), Err(_) => "Unknown resolution".to_string() };
     let uptime = format!("{} days {} hours {} mins", days, hours, mins);
     fn get_cpu_name() -> String {
-        let output = Command::new("wmic") .arg("cpu") .arg("get") .arg("name") .output() .expect("Failed to get CPU name");
-        String::from_utf8_lossy(&output.stdout) .lines() .skip(1) .next() .unwrap_or("Unknown CPU") .trim() .to_string()
+        let output = Command::new("wmic").arg("cpu").arg("get").arg("name").output().expect("Failed to get CPU name");
+        String::from_utf8_lossy(&output.stdout).lines().skip(1).next().unwrap_or("Unknown CPU").trim().to_string()
     }
     let cpu_name = get_cpu_name();
     fn get_gpu_name() -> String {
-        let output = Command::new("wmic") .arg("path") .arg("Win32_VideoController") .arg("get") .arg("Caption") .output() .expect("Failed to get GPU name");
-        String::from_utf8_lossy(&output.stdout) .lines() .skip(1) .next() .unwrap_or("Unknown GPU") .trim() .to_string()
+        let output = Command::new("wmic").arg("path").arg("Win32_VideoController").arg("get").arg("Caption").output().expect("Failed to get GPU name");
+        String::from_utf8_lossy(&output.stdout).lines().skip(1).next().unwrap_or("Unknown GPU").trim().to_string()
     }
     let gpu_name = get_gpu_name();
     fn get_ram_info() -> (u64, u64, f64) {
@@ -525,7 +637,7 @@ fn sys_fetch() {
     let (used_memory, total_memory, ram_usage) = get_ram_info();
     let ram_info = format!("{} MB / {} MB ({}%)", used_memory, total_memory, format!("{:.0}", ram_usage));
     fn get_disk_info() -> String {
-        let output = Command::new("wmic") .arg("logicaldisk") .arg("get") .arg("size,freespace,caption") .output() .expect("Failed to get disk info");
+        let output = Command::new("wmic").arg("logicaldisk").arg("get").arg("size,freespace,caption").output().expect("Failed to get disk info");
         let output_str = String::from_utf8_lossy(&output.stdout);
         let lines: Vec<&str> = output_str.lines().skip(1).collect();
         let mut total_used_space = 0u64;
@@ -551,7 +663,7 @@ fn sys_fetch() {
     let sys_fetch_logo = vec![
         "         \x1b[91m,.=:!!t3Z3z.\x1b[92m                    ",
         "        \x1b[91m:tt:::tt333EE3\x1b[92m                   ",
-        "        \x1b[91mEt:::ztt33EEEL\x1b[92m @Ee.,      ..,    ",
+        "        \x1b[91mEt:::ztt33EEEL\x1b[92m @Ee.,     ..,    ",
         "       \x1b[91m;tt:::tt333EE7\x1b[92m ;EEEEEEttttt33#    ",
         "      \x1b[91m:Et:::zt333EEQ.\x1b[92m $EEEEEttttt33QL    ",
         "      \x1b[91mit::::tt333EEF\x1b[92m @EEEEEEttttt33F     ",
@@ -729,17 +841,18 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 6 => {
                     {
                         let dir = "NUUI_config";
-                        if settings.show_hidden_files { Command::new("attrib") .args(&["+H", dir]) .status() .expect("Failed to hide NUUI_config");
-                        } else { Command::new("attrib") .args(&["-H", dir]) .status() .expect("Failed to unhide NUUI_config"); }
+                        if settings.show_config_file { Command::new("attrib").args(&["+H", dir]).status().expect("Failed to hide NUUI_config");
+                        } else { Command::new("attrib").args(&["-H", dir]).status().expect("Failed to unhide NUUI_config"); }
                     }
-                    settings.set_show_hidden_files(!settings.show_hidden_files);
+                    settings.set_show_config_file(!settings.show_config_file);
                 }
                 7 => {
                     let mut custom_option_path = String::new();
                     print!("Enter file path: ");
                     io::stdout().flush().unwrap();
-                    io::stdin().read_line(&mut custom_option_path).expect("Failed to read line");
-                    settings.add_custom_option(&custom_option_path.to_string());
+                    io::stdin().read_line(&mut custom_option_path).unwrap();
+                    let custom_option_path = custom_option_path.trim();
+                    if custom_option_path != "" { settings.add_custom_option(&custom_option_path.to_string()) };
                 }
                 8 => settings.clear_custom_options(),
                 _ => {}
@@ -756,17 +869,18 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 6 => {
                     {
                         let dir = "NUUI_config";
-                        if settings.show_hidden_files { Command::new("attrib") .args(&["+H", dir]) .status() .expect("Failed to hide NUUI_config");
-                        } else { Command::new("attrib") .args(&["-H", dir]) .status() .expect("Failed to unhide NUUI_config"); }
+                        if settings.show_config_file { Command::new("attrib").args(&["+H", dir]).status().expect("Failed to hide NUUI_config");
+                        } else { Command::new("attrib").args(&["-H", dir]).status().expect("Failed to unhide NUUI_config"); }
                     }
-                    settings.set_show_hidden_files(!settings.show_hidden_files);
+                    settings.set_show_config_file(!settings.show_config_file);
                 }
                 7 => {
                     let mut custom_option_path = String::new();
                     print!("Enter file path: ");
                     io::stdout().flush().unwrap();
-                    io::stdin().read_line(&mut custom_option_path).expect("Failed to read line");
-                    settings.add_custom_option(&custom_option_path.to_string());
+                    io::stdin().read_line(&mut custom_option_path).unwrap();
+                    let custom_option_path = custom_option_path.trim();
+                    if custom_option_path != "" { settings.add_custom_option(&custom_option_path.to_string()) };
                 }
                 8 => settings.clear_custom_options(),
                 _ => {}
@@ -802,8 +916,8 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
                     settings.micro_macro_key.to_string() + " "
                 } else if menu_options[i] == "micro_macro_delay" {
                     let delay = settings.micro_macro_delay as usize; let (display_delay, delay_unit) = if delay <= 1000 { (delay, "ms") } else if delay > 60000 { (delay / 60000, "m") } else { (delay / 1000, "s") }; format!("{}{} ", display_delay, delay_unit)
-                } else if menu_options[i] == "show_hidden_files" {
-                    if settings.show_hidden_files { "1 ".to_string() } else { "0 ".to_string() }
+                } else if menu_options[i] == "show_config_file" {
+                    if settings.show_config_file { "1 ".to_string() } else { "0 ".to_string() }
                 } else if menu_options[i] == "clear_custom" {
                     settings.custom_options.len().to_string() + " "
                 } else {
@@ -835,7 +949,7 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
 }
 
 fn settings_menu() {
-    let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_delay", "micro_macro_key", "micro_macro_delay", "show_hidden_files", "add_custom", "clear_custom"];
+    let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_delay", "micro_macro_key", "micro_macro_delay", "show_config_file", "add_custom", "clear_custom"];
     let mut settings_menu_selected = 0;
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
@@ -891,9 +1005,9 @@ fn run_menu_selected(menu_selected: usize, menu_options: &[&str]) {
 
 fn run_file(path: &str) -> std::io::Result<()> {
     Command::new("cmd")
-        .args(&["/C", "start", path])
-        .spawn()?
-        .wait()?;
+       .args(&["/C", "start", path])
+       .spawn()?
+       .wait()?;
     Ok(())
 }
 
@@ -903,12 +1017,15 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
     let mut output = String::new();
     output.push_str(&render_top("menu", None, false));
     for i in 0..menu_options.len() {
+        let mut spaces= " ";
+        if i >= 10 { spaces = "" }
         if i == menu_selected {
             output.push_str("│");
             output.push_str(&format!(
-                "{}{} {} {} {}  {}{}{}",
+                "{}{}{}{} {} {}  {}{}{}",
                 SetForegroundColor(Color::Black),
                 SetBackgroundColor(get_color("foreground")),
+                spaces,
                 i,
                 "›",
                 menu_options[i],
@@ -920,8 +1037,9 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
         } else {
             output.push_str("│");
             output.push_str(&format!(
-                "{} {} {}{} {}{}{}│\n",
+                "{}{}{} {}{} {}{}{}│\n",
                 SetForegroundColor(get_color("foreground")),
+                spaces,
                 i,
                 SetForegroundColor(Color::DarkGrey),
                 "|",
