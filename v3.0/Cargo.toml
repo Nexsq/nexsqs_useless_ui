@@ -1,0 +1,20 @@
+[package]
+name = "nuui_rust_edition"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+crossterm = "0.28.1"
+toml = "0.8.20"
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0"
+chrono = "0.4"
+winapi = { version = "0.3", features = ["shellapi", "winuser", "shobjidl"] }
+whoami = "1.2"
+os_info = "3.10.0"
+uptime_lib = "0.3.1"
+resolution = "0.2.0"
+raw-cpuid = "11.3.0"
+sysinfo = "0.33.1"
+regex = "1"
+enigo = "0.3.0"
