@@ -11,11 +11,13 @@ use std::env;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
 use std::sync::LazyLock;
+use std::net::{TcpStream, ToSocketAddrs};
+use std::error::Error;
 use chrono::Local;
 use serde_derive::{Serialize, Deserialize};
 use toml;
 use sysinfo::System;
-use std::net::{TcpStream, ToSocketAddrs};
+use wmi::{COMLibrary, WMIConnection};
 
 fn version() -> String {
     let version = "v3.0";
@@ -614,16 +616,30 @@ fn sys_fetch() {
     let current_dir = match env::current_dir() { Ok(path) => path, Err(e) => { eprintln!("Error getting current directory: {}", e); process::exit(1); } };
     let resolution = match resolution::current_resolution() { Ok((width, height)) => format!("{}x{}", width, height), Err(_) => "Unknown resolution".to_string() };
     let uptime = format!("{} days {} hours {} mins", days, hours, mins);
-    fn get_cpu_name() -> String {
-        let output = Command::new("wmic").arg("cpu").arg("get").arg("name").output().expect("Failed to get CPU name");
-        String::from_utf8_lossy(&output.stdout).lines().skip(1).next().unwrap_or("Unknown CPU").trim().to_string()
+    #[derive(Deserialize, Debug)]
+    #[serde(rename = "Win32_Processor")]
+    #[serde(rename_all = "PascalCase")]
+    struct Processor { name: String }
+    fn get_cpu_name() -> Result<String, Box<dyn Error>> {
+        let com_con = COMLibrary::new()?;
+        let wmi_con = WMIConnection::new(com_con.into())?;
+        let results: Vec<Processor> = wmi_con.query()?;
+        Ok(results.first().map(|cpu| cpu.name.clone()).unwrap_or_else(|| "Unknown CPU".to_string()))
     }
-    let cpu_name = get_cpu_name();
-    fn get_gpu_name() -> String {
-        let output = Command::new("wmic").arg("path").arg("Win32_VideoController").arg("get").arg("Caption").output().expect("Failed to get GPU name");
-        String::from_utf8_lossy(&output.stdout).lines().skip(1).next().unwrap_or("Unknown GPU").trim().to_string()
+    let cpu_name = get_cpu_name().unwrap_or_else(|_| "Unknown CPU".to_string());
+    #[derive(Deserialize, Debug)]
+    #[serde(rename = "Win32_VideoController")]
+    #[serde(rename_all = "PascalCase")]
+    struct VideoController {
+        name: String,
     }
-    let gpu_name = get_gpu_name();
+    fn get_gpu_name() -> Result<String, Box<dyn Error>> {
+        let com_con = COMLibrary::new()?;
+        let wmi_con = WMIConnection::new(com_con.into())?;
+        let results: Vec<VideoController> = wmi_con.query()?;
+        Ok(results.first().map(|vc| vc.name.clone()).unwrap_or_else(|| "Unknown GPU".to_string()))
+    }
+    let gpu_name = get_gpu_name().unwrap_or_else(|_| "Unknown GPU".to_string());
     fn get_ram_info() -> (u64, u64, f64) {
         let mut sys = System::new_all();
         sys.refresh_memory();
@@ -636,30 +652,34 @@ fn sys_fetch() {
     }
     let (used_memory, total_memory, ram_usage) = get_ram_info();
     let ram_info = format!("{} MB / {} MB ({}%)", used_memory, total_memory, format!("{:.0}", ram_usage));
-    fn get_disk_info() -> String {
-        let output = Command::new("wmic").arg("logicaldisk").arg("get").arg("size,freespace,caption").output().expect("Failed to get disk info");
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        let lines: Vec<&str> = output_str.lines().skip(1).collect();
+    #[derive(Deserialize, Debug)]
+    #[serde(rename = "Win32_LogicalDisk")]
+    #[serde(rename_all = "PascalCase")]
+    struct LogicalDisk { free_space: Option<u64>, size: Option<u64> }
+    fn get_disk_info() -> Result<String, Box<dyn Error>> {
+        let com_con = COMLibrary::new()?;
+        let wmi_con = WMIConnection::new(com_con.into())?;
+        let results: Vec<LogicalDisk> = wmi_con.query()?;
         let mut total_used_space = 0u64;
         let mut total_size = 0u64;
-        for line in lines {
-            let fields: Vec<&str> = line.split_whitespace().collect();
-            if fields.len() == 3 {
-                let free_space = fields[1];
-                let total_space = fields[2];
-                let free_space_bytes = free_space.parse::<u64>().unwrap_or(0);
-                let total_space_bytes = total_space.parse::<u64>().unwrap_or(0);
-                let used_space_bytes = total_space_bytes - free_space_bytes;
-                total_used_space += used_space_bytes;
-                total_size += total_space_bytes;
+        for disk in results {
+            if let (Some(free_space), Some(size)) = (disk.free_space, disk.size) {
+                total_used_space += size - free_space;
+                total_size += size;
             }
         }
+        if total_size == 0 { return Ok("Unknown Disk Info".to_string()) }
         let total_used_gb = total_used_space / 1024 / 1024 / 1024;
         let total_size_gb = total_size / 1024 / 1024 / 1024;
         let usage_percentage = (total_used_space as f64 / total_size as f64) * 100.0;
-        format!("{} GB / {} GB ({}%)", total_used_gb, total_size_gb, usage_percentage.round() as u64)
+        Ok(format!(
+            "{} GB / {} GB ({}%)",
+            total_used_gb,
+            total_size_gb,
+            usage_percentage.round() as u64
+        ))
     }
-    let disk_info = get_disk_info();
+    let disk_info = get_disk_info().unwrap_or_else(|_| "Unknown Disk Info".to_string());
     let sys_fetch_logo = vec![
         "         \x1b[91m,.=:!!t3Z3z.\x1b[92m                    ",
         "        \x1b[91m:tt:::tt333EE3\x1b[92m                   ",
