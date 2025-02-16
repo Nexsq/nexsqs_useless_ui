@@ -985,6 +985,7 @@ fn settings_menu() {
                 KeyCode::Tab => sys_fetch(),
                 KeyCode::BackTab => main(),
                 KeyCode::Esc => process::exit(0),
+                KeyCode::Enter => run_settings_menu_selected(settings_menu_selected, "right"),
                 KeyCode::Char(c) if c.is_digit(10) => { 
                     let num = c.to_digit(10).unwrap() as usize;
                     if num < settings_menu_options.len() { 
