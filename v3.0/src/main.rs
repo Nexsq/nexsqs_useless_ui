@@ -452,7 +452,7 @@ fn ping_tool() {
 
 static PORT_SCANS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
 static OPEN_PORTS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
-static PORT_NUM: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(1));
+static PORT_NUM: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(0));
 static PORT_SCAN_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 static PORT_RANGE: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 fn port_scan() {
@@ -505,7 +505,7 @@ fn port_scan() {
     fn clear_open_ports() { let mut open_ports = OPEN_PORTS.lock().unwrap(); open_ports.clear() }
     fn set_port_num(new_port_num: u16) { let mut num = PORT_NUM.lock().unwrap(); *num = new_port_num }
     fn get_port_num() -> u16 { let num = PORT_NUM.lock().unwrap(); *num }
-    fn clear_port_num() { let mut num = PORT_NUM.lock().unwrap(); *num = 1 }
+    fn clear_port_num() { let mut num = PORT_NUM.lock().unwrap(); *num = 0 }
     fn set_ip() {
         let mut ip = PORT_SCAN_IP.lock().unwrap();
         let mut new_ip = String::new();
@@ -552,18 +552,18 @@ fn port_scan() {
     execute!(stdout, cursor::MoveToColumn(2)).unwrap();
     let mut port = get_port();
     if port.is_empty() {
-        print!("Port range: ");
+        print!("Starting port: ");
         stdout.flush().unwrap();
         set_port();
         port = get_port()
     } else {
-        print!("Port range: {}", port)
+        print!("Starting port: {}", port)
     }
     if port.is_empty() {
         clear_ip(); return
     }
     let port = port.trim();
-    if get_port_num() == 1 {
+    if get_port_num() == 0 {
         if let Ok(port) = port.parse::<u16>() {
             set_port_num(port);
         } else {
