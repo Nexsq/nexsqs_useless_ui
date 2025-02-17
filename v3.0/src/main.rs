@@ -53,7 +53,7 @@ struct Settings {
     color: String,
     dark_theme: bool,
     ping_delay: u32,
-    port_scan_delay: u32,
+    port_scan_timeout: u32,
     micro_macro_key: String,
     micro_macro_delay: u32,
     show_config_file: bool,
@@ -65,7 +65,7 @@ impl Settings {
             color: "grey".to_string(),
             dark_theme: false,
             ping_delay: 500,
-            port_scan_delay: 500,
+            port_scan_timeout: 500,
             micro_macro_key: "F15".to_string(),
             micro_macro_delay: 30000,
             show_config_file: false,
@@ -124,8 +124,8 @@ impl Settings {
         self.ping_delay = new_delay.clamp(0, 4294967295);
         self.save();
     }
-    fn set_port_scan_delay(&mut self, new_delay: u32) {
-        self.port_scan_delay = new_delay.clamp(0, 4294967295);
+    fn set_port_scan_timeout(&mut self, new_delay: u32) {
+        self.port_scan_timeout = new_delay.clamp(0, 4294967295);
         self.save();
     }
     fn set_micro_macro_key(&mut self, new_key: &str) {
@@ -208,14 +208,9 @@ fn get_color(color_type: &str) -> Color {
 
 fn clear() {
     if cfg!(target_os = "windows") {
-        Command::new("cmd")
-           .args(&["/C", "cls"])
-           .status()
-           .expect("Failed to clear the terminal");
+        Command::new("cmd").args(&["/C", "cls"]).status().expect("Failed to clear the terminal");
     } else {
-        Command::new("clear")
-           .status()
-           .expect("Failed to clear the terminal");
+        Command::new("clear").status().expect("Failed to clear the terminal");
     }
 }
 
@@ -432,12 +427,12 @@ fn ping_tool() {
         if last_ping.elapsed() >= Duration::from_millis(settings.ping_delay as u64) {
             match ping(ip) {
                 Some((ms, ttl)) => {
-                    let ping_data = format!("Ping to {}: {:.0} ms (seq={}, ttl={})", ip, ms, PING_SEQ.lock().unwrap(), ttl);
-                    add_ping(ping_data);
+                    let ping_status = format!("Ping: {:.0} ms (seq={}, ttl={})", ms, PING_SEQ.lock().unwrap(), ttl);
+                    add_ping(ping_status);
                 },
                 None => {
-                    let ping_data = format!("Ping to {} failed", ip);
-                    add_ping(ping_data);
+                    let ping_status = format!("Ping to {} failed", ip);
+                    add_ping(ping_status);
                 }
             }
             let mut seq = PING_SEQ.lock().unwrap();
@@ -456,12 +451,14 @@ fn ping_tool() {
 }
 
 static PORT_SCANS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
-static PORT_NUM: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
+static OPEN_PORTS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
+static PORT_NUM: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(1));
 static PORT_SCAN_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
+static PORT_RANGE: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 fn port_scan() {
     fn add_port_scan(port_scan: String) {
         let (_, height) = terminal::size().unwrap();
-        let max_port_scans = height.saturating_sub(12).max(1) as usize;
+        let max_port_scans = height.saturating_sub(14).max(1) as usize;
         let mut port_scans = PORT_SCANS.lock().unwrap();
         while port_scans.len() > max_port_scans {
             if !port_scans.is_empty() {
@@ -473,7 +470,7 @@ fn port_scan() {
     fn print_port_scans() -> usize {
         let (width, _) = terminal::size().unwrap();
         let mut stdout = io::stdout();
-        let start_y = 9;
+        let start_y = 10;
         let port_scans = PORT_SCANS.lock().unwrap();
         for i in 0..port_scans.len() {
             execute!(stdout, cursor::MoveTo(0, start_y + i as u16)).unwrap();
@@ -487,6 +484,27 @@ fn port_scan() {
         port_scans.len()
     }
     fn clear_port_scans() { let mut port_scans = PORT_SCANS.lock().unwrap(); port_scans.clear() }
+    fn add_open_port(port_scan: String) {
+        let mut open_ports = OPEN_PORTS.lock().unwrap();
+        if !open_ports.contains(&port_scan) { open_ports.push(port_scan) }
+    }
+    fn print_open_ports() -> usize {
+        let (_, height) = terminal::size().unwrap();
+        let mut stdout = io::stdout();
+        let open_ports = OPEN_PORTS.lock().unwrap();
+        execute!(stdout, cursor::MoveTo(2, height - 2)).unwrap();
+        print!("Open Ports: ");
+        let mut first = true;
+        for open_port in open_ports.iter() {
+            if first { first = false } else { print!(", ") }
+            print!("{}", open_port);
+        }
+        stdout.flush().unwrap();
+        open_ports.len()
+    }
+    fn clear_open_ports() { let mut open_ports = OPEN_PORTS.lock().unwrap(); open_ports.clear() }
+    fn set_port_num(new_port_num: u16) { let mut num = PORT_NUM.lock().unwrap(); *num = new_port_num }
+    fn get_port_num() -> u16 { let num = PORT_NUM.lock().unwrap(); *num }
     fn clear_port_num() { let mut num = PORT_NUM.lock().unwrap(); *num = 1 }
     fn set_ip() {
         let mut ip = PORT_SCAN_IP.lock().unwrap();
@@ -497,8 +515,16 @@ fn port_scan() {
     }
     fn get_ip() -> String { let ip = PORT_SCAN_IP.lock().unwrap(); ip.clone() }
     fn clear_ip() { let mut ip = PORT_SCAN_IP.lock().unwrap(); *ip = String::new() }
+    fn set_port() {
+        let mut port = PORT_RANGE.lock().unwrap();
+        let mut new_port = String::new();
+        io::stdin().read_line(&mut new_port).unwrap();
+        let new_port = new_port.trim();
+        *port = new_port.to_string()
+    }
+    fn get_port() -> String { let port = PORT_RANGE.lock().unwrap(); port.clone() }
+    fn clear_port() { let mut port = PORT_RANGE.lock().unwrap(); *port = String::new() }
     let mut stdout = io::stdout();
-    let settings = Settings::load();
     let last_render_time = get_time();
     let (last_width, last_height) = terminal::size().unwrap();
     let mut needs_rendering = false;
@@ -511,56 +537,92 @@ fn port_scan() {
     execute!(stdout, cursor::MoveUp(1)).unwrap();
     let mut ip = get_ip();
     if ip.is_empty() {
-        print!("Pinging: ");
+        print!("Ip: ");
         stdout.flush().unwrap();
         set_ip();
         ip = get_ip()
     } else {
-        print!("Pinging: {}", ip)
+        print!("Ip: {}", ip);
+        execute!(stdout, cursor::MoveDown(1)).unwrap()
     }
     if ip.is_empty() {
         return
     }
     let ip = ip.trim();
+    execute!(stdout, cursor::MoveToColumn(2)).unwrap();
+    let mut port = get_port();
+    if port.is_empty() {
+        print!("Port range: ");
+        stdout.flush().unwrap();
+        set_port();
+        port = get_port()
+    } else {
+        print!("Port range: {}", port)
+    }
+    if port.is_empty() {
+        clear_ip(); return
+    }
+    let port = port.trim();
+    if get_port_num() == 1 {
+        if let Ok(port) = port.parse::<u16>() {
+            set_port_num(port);
+        } else {
+            execute!(stdout, cursor::MoveToColumn(2)).unwrap();
+            eprintln!("Error: Invalid port '{}'", port);
+        }
+    }
     let mut last_port_scan = Instant::now();
-    fn scan_ports(ip: &str, port: u32) -> Option<String> {
-        let addr = format!("{}:{}", ip, port);
-        let timeout = Duration::from_secs(1);
-        let result = TcpStream::connect_timeout(&addr.to_socket_addrs().unwrap().next().unwrap(), timeout);
-    
-        match result {
-            Ok(_) => Some(format!("Port {} is open", port)),
-            Err(_) => None,
+    fn check_port(ip: &str, port: u16) -> bool {
+        let settings = Settings::load();
+        let address = format!("{}:{}", ip, port);
+        match address.to_socket_addrs() {
+            Ok(mut addrs) => {
+                match TcpStream::connect_timeout(&addrs.next().unwrap(), Duration::from_millis(settings.port_scan_timeout as u64)) {
+                    Ok(_) => true,
+                    Err(_) => false,
+                }
+            }
+            Err(_) => {
+                let mut stdout = io::stdout();
+                execute!(stdout, cursor::MoveToColumn(2)).unwrap();
+                clear_open_ports();
+                let error_msg = format!("Error: Unable to resolve IP address '{}'", ip);
+                add_open_port(error_msg.clone());
+                println!("{}", error_msg);
+                false
+            }
         }
     }
     print_port_scans();
+    print_open_ports();
     loop {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
-                KeyCode::Tab => { clear_port_scans(); clear_port_num(); clear_ip(); settings_menu() },
-                KeyCode::BackTab => { clear_port_scans(); clear_port_num(); clear_ip(); return },
+                KeyCode::Tab => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); settings_menu() },
+                KeyCode::BackTab => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); return },
                 KeyCode::Esc => process::exit(0),
-                KeyCode::Enter => { clear_port_scans(); clear_port_num(); clear_ip(); port_scan(); return }
-                KeyCode::Char(c) if c == ' ' => { clear_port_scans(); clear_port_num(); clear_ip(); port_scan(); return }
+                KeyCode::Enter => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
+                KeyCode::Char(c) if c == ' ' => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
                 _ => {}
             }
         }
-        if last_port_scan.elapsed() >= Duration::from_millis(settings.port_scan_delay as u64) {
-            match scan_ports(ip, *PORT_NUM.lock().unwrap()) {
-                Some(port_scan_result) => {
-                    add_port_scan(port_scan_result);
-                },
-                None => {
-                    let port_scan_data = format!("Failed to scan port {}", *PORT_NUM.lock().unwrap());
-                    add_port_scan(port_scan_data);
-                }
+        if last_port_scan.elapsed() >= Duration::from_millis(0) {
+            let port_num = get_port_num();
+            if check_port(ip, port_num) {
+                let port_status = format!("Port {} {}open{}", port_num, SetForegroundColor(get_color("foreground")), SetForegroundColor(get_color("background")));
+                add_port_scan(port_status);
+                add_open_port(port_num.to_string());
+            } else {
+                let port_status = format!("Port {} closed", port_num);
+                add_port_scan(port_status);
             }
             let mut num = PORT_NUM.lock().unwrap();
-            *num += 1;
+            if *num < u16::MAX { *num += 1 }
             let num_port_scans = print_port_scans();
             execute!(stdout, cursor::MoveUp(num_port_scans as u16)).unwrap();
             last_port_scan = Instant::now();
+            print_open_ports();
         }
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
@@ -843,8 +905,8 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
     let color_index = colors.iter().position(|&c| c == settings.color ).unwrap_or(0);
     let ping_delays = [10, 50, 100, 200, 500, 1000];
     let ping_delay_index = ping_delays.iter().position(|&c| c == settings.ping_delay ).unwrap_or(0);
-    let port_scan_delays = [10, 50, 100, 200, 500, 1000];
-    let port_scan_delay_index = port_scan_delays.iter().position(|&c| c == settings.port_scan_delay ).unwrap_or(0);
+    let port_scan_timeouts = [10, 25, 50, 75, 100, 150, 200, 350, 500, 750, 1000];
+    let port_scan_timeout_index = port_scan_timeouts.iter().position(|&c| c == settings.port_scan_timeout ).unwrap_or(0);
     let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
     let micro_macro_key_index = micro_macro_keys.iter().position(|&c| c == settings.micro_macro_key ).unwrap_or(0);
     let micro_macro_delays = [200, 500, 1000, 5000, 10000, 30000, 60000, 120000, 300000, 600000];
@@ -855,7 +917,7 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 0 => { if color_index > 0 { settings.set_color(colors[color_index - 1]) } else { settings.set_color(colors[colors.len() - 1]) } }
                 1 => settings.set_dark_theme(!settings.dark_theme),
                 2 => { if ping_delay_index > 0 { settings.set_ping_delay(ping_delays[ping_delay_index - 1]) } else { settings.set_ping_delay(ping_delays[ping_delays.len() - 1]) } }
-                3 => { if port_scan_delay_index > 0 { settings.set_port_scan_delay(port_scan_delays[port_scan_delay_index - 1]) } else { settings.set_port_scan_delay(port_scan_delays[port_scan_delays.len() - 1]) } }
+                3 => { if port_scan_timeout_index > 0 { settings.set_port_scan_timeout(port_scan_timeouts[port_scan_timeout_index - 1]) } else { settings.set_port_scan_timeout(port_scan_timeouts[port_scan_timeouts.len() - 1]) } }
                 4 => { if micro_macro_key_index > 0 { settings.set_micro_macro_key(micro_macro_keys[micro_macro_key_index - 1]) } else { settings.set_micro_macro_key(micro_macro_keys[micro_macro_keys.len() - 1]) } }
                 5 => { if micro_macro_delay_index > 0 { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delay_index - 1]) } else { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delays.len() - 1]) } }
                 6 => {
@@ -883,7 +945,7 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 0 => settings.set_color(colors[(color_index + 1) % colors.len()]),
                 1 => settings.set_dark_theme(!settings.dark_theme),
                 2 => settings.set_ping_delay(ping_delays[(ping_delay_index + 1) % ping_delays.len()]),
-                3 => settings.set_port_scan_delay(port_scan_delays[(port_scan_delay_index + 1) % port_scan_delays.len()]),
+                3 => settings.set_port_scan_timeout(port_scan_timeouts[(port_scan_timeout_index + 1) % port_scan_timeouts.len()]),
                 4 => settings.set_micro_macro_key(micro_macro_keys[(micro_macro_key_index + 1) % micro_macro_keys.len()]),
                 5 => settings.set_micro_macro_delay(micro_macro_delays[(micro_macro_delay_index + 1) % micro_macro_delays.len()]),
                 6 => {
@@ -930,8 +992,8 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
                     if settings.dark_theme { "1 ".to_string() } else { "0 ".to_string() }
                 } else if menu_options[i] == "ping_delay" {
                     settings.ping_delay.to_string() + "ms "
-                } else if menu_options[i] == "port_scan_delay" {
-                    settings.port_scan_delay.to_string() + "ms "
+                } else if menu_options[i] == "port_scan_timeout" {
+                    settings.port_scan_timeout.to_string() + "ms "
                 } else if menu_options[i] == "micro_macro_key" {
                     settings.micro_macro_key.to_string() + " "
                 } else if menu_options[i] == "micro_macro_delay" {
@@ -969,7 +1031,7 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
 }
 
 fn settings_menu() {
-    let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_delay", "micro_macro_key", "micro_macro_delay", "show_config_file", "add_custom", "clear_custom"];
+    let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_timeout", "micro_macro_key", "micro_macro_delay", "show_config_file", "add_custom", "clear_custom"];
     let mut settings_menu_selected = 0;
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
