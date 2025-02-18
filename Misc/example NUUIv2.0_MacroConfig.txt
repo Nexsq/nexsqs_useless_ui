@@ -27,4 +27,4 @@ sleep 100
 @
 #
 $
-loop 10
+loop 5
