@@ -10,11 +10,11 @@ RanNum
 sleep 100
 Enter
 sleep 1000
-n??
+n?
 n++
-n??
+n?
 n--
-n??
+n?
 sleep 100
 1
 2
