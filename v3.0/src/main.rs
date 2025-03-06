@@ -56,7 +56,8 @@ struct Settings {
     port_scan_timeout: u32,
     micro_macro_key: String,
     micro_macro_delay: u32,
-    show_config_file: bool,
+    hide_help: bool,
+    show_config_files: bool,
     custom_options: Vec<String>
 }
 impl Settings {
@@ -68,7 +69,8 @@ impl Settings {
             port_scan_timeout: 500,
             micro_macro_key: "F15".to_string(),
             micro_macro_delay: 30000,
-            show_config_file: false,
+            hide_help: false,
+            show_config_files: false,
             custom_options: Vec::new()
         }
     }
@@ -136,8 +138,12 @@ impl Settings {
         self.micro_macro_delay = new_delay.clamp(0, 4294967295);
         self.save();
     }
-    fn set_show_config_file(&mut self, new_value: bool) {
-        self.show_config_file = new_value;
+    fn set_hide_help(&mut self, new_value: bool) {
+        self.hide_help = new_value;
+        self.save();
+    }
+    fn set_show_config_files(&mut self, new_value: bool) {
+        self.show_config_files = new_value;
         self.save();
     }
     fn add_custom_option(&mut self, path: &str) {
@@ -154,6 +160,10 @@ fn get_key() -> Option<KeyCode> {
     if event::poll(Duration::ZERO).unwrap() {
         if let Event::Key(KeyEvent { code, kind,.. }) = event::read().unwrap() {
             if kind == KeyEventKind::Press {
+                if code == KeyCode::Char('h') || code == KeyCode::Char('H') {
+                    let mut help_open = HELP_OPEN.lock().unwrap();
+                    *help_open = !*help_open;
+                }
                 return Some(code);
             }
         }
@@ -170,14 +180,14 @@ fn get_color(color_type: &str) -> Color {
     let settings = Settings::load();
 
     match color_type {
-        "background" => {
+        "theme" => {
             if settings.dark_theme {
                 return Color::Grey;
             } else {
                 return Color::White;
             }
         },
-        "foreground" => {
+        "main" => {
             if settings.dark_theme {
                 match settings.color.to_lowercase().as_str() {
                     "grey" => Color::DarkGrey,
@@ -240,17 +250,17 @@ fn render_top(current_option: &str, new_option: Option<&str>, new_option_selecte
     for i in 0..logo_0_lines.len() {
         output.push_str(&format!(
             "{}{}{}{}{}{}\n",
-            SetForegroundColor(get_color("foreground")),
+            SetForegroundColor(get_color("main")),
             logo_0_lines[i],
-            SetForegroundColor(get_color("background")),
+            SetForegroundColor(get_color("theme")),
             logo_1_lines[i],
-            SetForegroundColor(get_color("foreground")),
+            SetForegroundColor(get_color("main")),
             logo_2_lines[i]
         ));
     }
     output.push_str(&format!(
         "{}{}{}{}",
-        SetForegroundColor(get_color("background")),
+        SetForegroundColor(get_color("theme")),
         cursor::MoveUp(logo_0_lines.len() as u16 - 1),
         cursor::MoveToColumn(width - 7),
         current_time
@@ -262,7 +272,7 @@ fn render_top(current_option: &str, new_option: Option<&str>, new_option_selecte
     ));
     for (index, option) in main_options.iter().enumerate() {
         if index == 1 + new_options_count {
-            output.push_str(&format!("{}", cursor::MoveRight(width - main_options_length - 1)));
+            if width > main_options_length + 1 { output.push_str(&format!("{}", cursor::MoveRight(width - main_options_length - 1))) }
         }
         let dashes = "─".repeat(option.len());
         output.push_str(" ╭─");
@@ -272,7 +282,7 @@ fn render_top(current_option: &str, new_option: Option<&str>, new_option_selecte
     output.push_str(" ");
     for (index, option) in main_options.iter().enumerate() {
         if index == 1 + new_options_count {
-            output.push_str(&format!("{}", cursor::MoveRight(width - main_options_length - 1)));
+            if width > main_options_length + 1 { output.push_str(&format!("{}", cursor::MoveRight(width - main_options_length - 1))) }
         }
         output.push_str(" │ ");
         output.push_str(option);
@@ -282,8 +292,7 @@ fn render_top(current_option: &str, new_option: Option<&str>, new_option_selecte
     output.push_str("╭");
     for (index, option) in main_options.iter().enumerate() {
         if index == 1 + new_options_count {
-            let dashes = "─".repeat(width as usize - main_options_length as usize - 1);
-            output.push_str(&dashes);
+            if width > main_options_length + 1 { let dashes = "─".repeat(width as usize - main_options_length as usize - 1); output.push_str(&dashes) }
         }
         if current_option == option {
             let spaces = " ".repeat(option.len());
@@ -304,14 +313,29 @@ fn render_top(current_option: &str, new_option: Option<&str>, new_option_selecte
     output.to_string()
 }
 
+static HELP_OPEN: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 fn render_bottom(mid_length: u16) -> String {
+    let settings = Settings::load();
     let (width, height) = terminal::size().unwrap();
     let (logo_0, _, _) = logo();
     let logo_0_lines: Vec<&str> = logo_0.lines().collect();
     let dashes = "─".repeat((width - 2) as usize);
+    let help_open = HELP_OPEN.lock().unwrap();
+    let mut help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | select: $[ent]$ |");
+    if *help_open { help_string += " less: $[h]$ |" } else { help_string += " more: $[h]$ |" };
+    let mut help_more_height = 0;
+    let help_more_string = String::from(
+r#"help text
+for each
+option
+and maybe a footer"#
+    );
+    let help_more_string_lines: Vec<&str> = help_more_string.lines().collect();
+    if !settings.hide_help && *help_open { help_more_height = help_more_string.lines().count() as u16 }
     let mut output = String::new();
-    if height > logo_0_lines.len() as u16 + mid_length + 3 {
-        for _ in 0..height - 8 - mid_length {
+    if !settings.hide_help { help_more_height += 1 };
+    if height > logo_0_lines.len() as u16 + mid_length + 3 && height > 8 + help_more_height + mid_length {
+        for _ in 0..height - 8 - help_more_height - mid_length {
             output.push_str("│");
             output.push_str(&format!("{}", cursor::MoveToColumn(width)));
             output.push_str("│\n");
@@ -320,6 +344,30 @@ fn render_bottom(mid_length: u16) -> String {
     output.push_str("╰");
     output.push_str(&dashes);
     output.push_str("╯");
+    if !settings.hide_help {
+        if *help_open {
+            for i in 0..help_more_string.lines().count() {
+                output.push_str(&format!("{}", cursor::MoveDown(1)));
+                output.push_str(&format!("{}", cursor::MoveToColumn(width / 2 - help_more_string_lines[i].len() as u16 / 2)));
+                output.push_str(help_more_string_lines[i]);
+            }
+        }
+        output.push_str(&format!("{}", cursor::MoveToRow(height)));
+        if width / 2 > help_string.chars().filter(|&c| c != '$').count() as u16 / 2 { output.push_str(&format!("{}", cursor::MoveToColumn(width / 2 - help_string.chars().filter(|&c| c != '$').count() as u16 / 2))) }
+        let help_string_parts: Vec<&str> = help_string.split('$').collect();
+        for (i, part) in help_string_parts.iter().enumerate() {
+            if i % 2 == 1 {
+                output.push_str(&format!("{}", SetForegroundColor(Color::Black)));
+                output.push_str(&format!("{}", SetBackgroundColor(get_color("main"))));
+                output.push_str(part);
+                output.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
+                output.push_str(&format!("{}", SetBackgroundColor(Color::Black)));
+            } else {
+                output.push_str(part);
+            }
+        }
+    }
+    output.push_str(&format!("{}", cursor::MoveToRow(height)));
     output.push_str(&format!("{}", cursor::MoveToColumn(2)));
     if height > logo_0_lines.len() as u16 + mid_length + 3 {
         output.push_str(&format!("{}", cursor::MoveUp(height - 9 - mid_length)));
@@ -329,10 +377,10 @@ fn render_bottom(mid_length: u16) -> String {
     output.to_string()
 }
 
-static PINGS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
-static PING_SEQ: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
-static PING_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 fn ping_tool() {
+    static PINGS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
+    static PING_SEQ: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
+    static PING_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
     fn add_ping(ping: String) {
         let (_, height) = terminal::size().unwrap();
         let max_pings = height.saturating_sub(12).max(1) as usize;
@@ -416,9 +464,9 @@ fn ping_tool() {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
-                KeyCode::Tab => { clear_pings(); clear_seqs(); clear_ip(); settings_menu() },
-                KeyCode::BackTab => { clear_pings(); clear_seqs(); clear_ip(); return },
-                KeyCode::Esc => process::exit(0),
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => { clear_pings(); clear_seqs(); clear_ip(); settings_menu() },
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => { clear_pings(); clear_seqs(); clear_ip(); return },
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
                 KeyCode::Enter => { clear_pings(); clear_seqs(); clear_ip(); ping_tool(); return }
                 KeyCode::Char(c) if c == ' ' => { clear_pings(); clear_seqs(); clear_ip(); ping_tool(); return }
                 _ => {}
@@ -450,12 +498,12 @@ fn ping_tool() {
     }
 }
 
-static PORT_SCANS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
-static OPEN_PORTS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
-static PORT_NUM: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(0));
-static PORT_SCAN_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
-static PORT_RANGE: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 fn port_scan() {
+    static PORT_SCANS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
+    static OPEN_PORTS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
+    static PORT_NUM: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(0));
+    static PORT_SCAN_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
+    static PORT_RANGE: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
     fn add_port_scan(port_scan: String) {
         let (_, height) = terminal::size().unwrap();
         let max_port_scans = height.saturating_sub(14).max(1) as usize;
@@ -572,25 +620,22 @@ fn port_scan() {
         }
     }
     let mut last_port_scan = Instant::now();
-    fn check_port(ip: &str, port: u16) -> bool {
+    enum PortStatus { Open, Closed, Error(String) }
+    fn check_port(ip: &str, port: u16) -> PortStatus {
         let settings = Settings::load();
         let address = format!("{}:{}", ip, port);
         match address.to_socket_addrs() {
             Ok(mut addrs) => {
-                match TcpStream::connect_timeout(&addrs.next().unwrap(), Duration::from_millis(settings.port_scan_timeout as u64)) {
-                    Ok(_) => true,
-                    Err(_) => false,
+                if let Some(addr) = addrs.next() {
+                    match TcpStream::connect_timeout(&addr, Duration::from_millis(settings.port_scan_timeout as u64)) {
+                        Ok(_) => PortStatus::Open,
+                        Err(_) => PortStatus::Closed,
+                    }
+                } else {
+                    PortStatus::Error(format!("Error: No valid address found for '{}'", ip))
                 }
             }
-            Err(_) => {
-                let mut stdout = io::stdout();
-                execute!(stdout, cursor::MoveToColumn(2)).unwrap();
-                clear_open_ports();
-                let error_msg = format!("Error: Unable to resolve IP address '{}'", ip);
-                add_open_port(error_msg.clone());
-                println!("{}", error_msg);
-                false
-            }
+            Err(_) => PortStatus::Error(format!("Error: Unable to resolve IP address '{}'", ip)),
         }
     }
     print_port_scans();
@@ -599,26 +644,32 @@ fn port_scan() {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
-                KeyCode::Tab => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); settings_menu() },
-                KeyCode::BackTab => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); return },
-                KeyCode::Esc => process::exit(0),
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); settings_menu() },
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); return },
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
                 KeyCode::Enter => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
                 KeyCode::Char(c) if c == ' ' => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
                 _ => {}
             }
         }
-        if last_port_scan.elapsed() >= Duration::from_millis(0) {
+        if last_port_scan.elapsed() >= Duration::ZERO {
             let port_num = get_port_num();
-            if check_port(ip, port_num) {
-                let port_status = format!("Port {} {}open{}", port_num, SetForegroundColor(get_color("foreground")), SetForegroundColor(get_color("background")));
-                add_port_scan(port_status);
-                add_open_port(port_num.to_string());
-            } else {
-                let port_status = format!("Port {} closed", port_num);
-                add_port_scan(port_status);
+            match check_port(ip, port_num) {
+                PortStatus::Open => {
+                    let port_status = format!("Port {} {}open{}", port_num, SetForegroundColor(get_color("main")), SetForegroundColor(get_color("theme")));
+                    add_port_scan(port_status);
+                    add_open_port(port_num.to_string());
+                    if port_num < u16::MAX { set_port_num(port_num + 1) }
+                }
+                PortStatus::Closed => {
+                    let port_status = format!("Port {} closed", port_num);
+                    add_port_scan(port_status);
+                    if port_num < u16::MAX { set_port_num(port_num + 1) }
+                }
+                PortStatus::Error(err) => {
+                    add_port_scan(err);
+                }
             }
-            let mut num = PORT_NUM.lock().unwrap();
-            if *num < u16::MAX { *num += 1 }
             let num_port_scans = print_port_scans();
             execute!(stdout, cursor::MoveUp(num_port_scans as u16)).unwrap();
             last_port_scan = Instant::now();
@@ -769,11 +820,11 @@ fn sys_fetch() {
     for (index, line) in sys_fetch_logo.iter().enumerate() {
         output.push_str("│");
         let mut line_content = String::from(*line);
-        SetForegroundColor(get_color("background"));
+        SetForegroundColor(get_color("theme"));
         if index == 0 {
             line_content.push_str(&format!(
                 "{}{}@{}",
-                SetForegroundColor(get_color("foreground")),
+                SetForegroundColor(get_color("main")),
                 user_name,
                 machine_name
             ));
@@ -781,83 +832,83 @@ fn sys_fetch() {
             let dashes = "-".repeat((user_name.len() + machine_name.len() + 1) as usize);
             line_content.push_str(&format!(
                 "{}{}",
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("theme")),
                 dashes
             ));
         } else if index == 2 {
             line_content.push_str(&format!(
                 "{}OS{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 os_name
             ));
         } else if index == 3 {
             line_content.push_str(&format!(
                 "{}Host{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 machine_name
             ));
         } else if index == 4 {
             line_content.push_str(&format!(
                 "{}Kernel{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 kernel
             ));
         } else if index == 5 {
             line_content.push_str(&format!(
                 "{}Uptime{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 uptime
             ));
         } else if index == 6 {
             line_content.push_str(&format!(
                 "{}Dir{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 current_dir.display()
             ));
         } else if index == 7 {
             line_content.push_str(&format!(
                 "{}Resolution{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 resolution
             ));
         } else if index == 8 {
             line_content.push_str(&format!(
                 "{}CPU{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 cpu_name
             ));
         } else if index == 9 {
             line_content.push_str(&format!(
                 "{}GPU{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 gpu_name
             ));
         } else if index == 10 {
             line_content.push_str(&format!(
                 "{}RAM{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 ram_info
             ));
         } else if index == 11 {
             line_content.push_str(&format!(
                 "{}Storage{}: {}",
-                SetForegroundColor(get_color("foreground")),
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("main")),
+                SetForegroundColor(get_color("theme")),
                 disk_info
             ));
         } else if index == 13 {
             line_content.push_str(&format!(
                 "{}{}   {}   {}   {}   {}   {}   {}   {}   {}",
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("theme")),
                 SetBackgroundColor(Color::Black),
                 SetBackgroundColor(Color::DarkRed),
                 SetBackgroundColor(Color::DarkYellow),
@@ -872,7 +923,7 @@ fn sys_fetch() {
         output.push_str(&format!(
             "{}{}{}│\n",
             line_content,
-            SetForegroundColor(get_color("background")),
+            SetForegroundColor(get_color("theme")),
             cursor::MoveToColumn(width)
         ));
     }
@@ -884,9 +935,9 @@ fn sys_fetch() {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
-                KeyCode::Tab => main(),
-                KeyCode::BackTab => settings_menu(),
-                KeyCode::Esc => process::exit(0),
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => main(),
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => settings_menu(),
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
                 _ => {}
             }
         }
@@ -920,15 +971,16 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 3 => { if port_scan_timeout_index > 0 { settings.set_port_scan_timeout(port_scan_timeouts[port_scan_timeout_index - 1]) } else { settings.set_port_scan_timeout(port_scan_timeouts[port_scan_timeouts.len() - 1]) } }
                 4 => { if micro_macro_key_index > 0 { settings.set_micro_macro_key(micro_macro_keys[micro_macro_key_index - 1]) } else { settings.set_micro_macro_key(micro_macro_keys[micro_macro_keys.len() - 1]) } }
                 5 => { if micro_macro_delay_index > 0 { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delay_index - 1]) } else { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delays.len() - 1]) } }
-                6 => {
+                6 => settings.set_hide_help(!settings.hide_help),
+                7 => {
                     {
                         let dir = "NUUI_config";
-                        if settings.show_config_file { Command::new("attrib").args(&["+H", dir]).status().expect("Failed to hide NUUI_config");
+                        if settings.show_config_files { Command::new("attrib").args(&["+H", dir]).status().expect("Failed to hide NUUI_config");
                         } else { Command::new("attrib").args(&["-H", dir]).status().expect("Failed to unhide NUUI_config"); }
                     }
-                    settings.set_show_config_file(!settings.show_config_file);
+                    settings.set_show_config_files(!settings.show_config_files);
                 }
-                7 => {
+                8 => {
                     let mut custom_option_path = String::new();
                     print!("Enter file path: ");
                     io::stdout().flush().unwrap();
@@ -936,7 +988,7 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                     let custom_option_path = custom_option_path.trim();
                     if custom_option_path != "" { settings.add_custom_option(&custom_option_path.to_string()) };
                 }
-                8 => settings.clear_custom_options(),
+                9 => settings.clear_custom_options(),
                 _ => {}
             }
         },
@@ -948,15 +1000,16 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 3 => settings.set_port_scan_timeout(port_scan_timeouts[(port_scan_timeout_index + 1) % port_scan_timeouts.len()]),
                 4 => settings.set_micro_macro_key(micro_macro_keys[(micro_macro_key_index + 1) % micro_macro_keys.len()]),
                 5 => settings.set_micro_macro_delay(micro_macro_delays[(micro_macro_delay_index + 1) % micro_macro_delays.len()]),
-                6 => {
+                6 => settings.set_hide_help(!settings.hide_help),
+                7 => {
                     {
                         let dir = "NUUI_config";
-                        if settings.show_config_file { Command::new("attrib").args(&["+H", dir]).status().expect("Failed to hide NUUI_config");
+                        if settings.show_config_files { Command::new("attrib").args(&["+H", dir]).status().expect("Failed to hide NUUI_config");
                         } else { Command::new("attrib").args(&["-H", dir]).status().expect("Failed to unhide NUUI_config"); }
                     }
-                    settings.set_show_config_file(!settings.show_config_file);
+                    settings.set_show_config_files(!settings.show_config_files);
                 }
-                7 => {
+                8 => {
                     let mut custom_option_path = String::new();
                     print!("Enter file path: ");
                     io::stdout().flush().unwrap();
@@ -964,7 +1017,7 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                     let custom_option_path = custom_option_path.trim();
                     if custom_option_path != "" { settings.add_custom_option(&custom_option_path.to_string()) };
                 }
-                8 => settings.clear_custom_options(),
+                9 => settings.clear_custom_options(),
                 _ => {}
             }
         },
@@ -983,7 +1036,7 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
             output.push_str("│");
             output.push_str(&format!(
                 "{}{} {} {} {} {}{}{}{}",
-                SetBackgroundColor(get_color("foreground")),
+                SetBackgroundColor(get_color("main")),
                 SetForegroundColor(Color::Black),
                 i,
                 "›",
@@ -998,14 +1051,16 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
                     settings.micro_macro_key.to_string() + " "
                 } else if menu_options[i] == "micro_macro_delay" {
                     let delay = settings.micro_macro_delay as usize; let (display_delay, delay_unit) = if delay <= 1000 { (delay, "ms") } else if delay > 60000 { (delay / 60000, "m") } else { (delay / 1000, "s") }; format!("{}{} ", display_delay, delay_unit)
-                } else if menu_options[i] == "show_config_file" {
-                    if settings.show_config_file { "1 ".to_string() } else { "0 ".to_string() }
+                } else if menu_options[i] == "hide_help" {
+                    if settings.hide_help { "1 ".to_string() } else { "0 ".to_string() }
+                } else if menu_options[i] == "show_config_files" {
+                    if settings.show_config_files { "1 ".to_string() } else { "0 ".to_string() }
                 } else if menu_options[i] == "clear_custom" {
                     settings.custom_options.len().to_string() + " "
                 } else {
                     " ".to_string()
                 },
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("theme")),
                 SetBackgroundColor(Color::Black),
                 cursor::MoveToColumn(width)
             ));
@@ -1014,11 +1069,11 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
             output.push_str("│");
             output.push_str(&format!(
                 "{} {} {}{} {}{}{}│\n",
-                SetForegroundColor(get_color("foreground")),
+                SetForegroundColor(get_color("main")),
                 i,
                 SetForegroundColor(Color::DarkGrey),
                 "|",
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("theme")),
                 menu_options[i],
                 cursor::MoveToColumn(width)
             ));
@@ -1031,7 +1086,7 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
 }
 
 fn settings_menu() {
-    let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_timeout", "micro_macro_key", "micro_macro_delay", "show_config_file", "add_custom", "clear_custom"];
+    let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_timeout", "micro_macro_key", "micro_macro_delay", "hide_help", "show_config_files", "add_custom", "clear_custom"];
     let mut settings_menu_selected = 0;
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
@@ -1040,13 +1095,13 @@ fn settings_menu() {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
-                KeyCode::Up => if settings_menu_selected > 0 { settings_menu_selected -= 1 } else { settings_menu_selected = settings_menu_options.len() - 1 }
+                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => if settings_menu_selected > 0 { settings_menu_selected -= 1 } else { settings_menu_selected = settings_menu_options.len() - 1 }
                 KeyCode::Left => run_settings_menu_selected(settings_menu_selected, "left"),
-                KeyCode::Down => if settings_menu_selected < settings_menu_options.len() - 1 { settings_menu_selected += 1 } else { settings_menu_selected = 0 }
+                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => if settings_menu_selected < settings_menu_options.len() - 1 { settings_menu_selected += 1 } else { settings_menu_selected = 0 }
                 KeyCode::Right => run_settings_menu_selected(settings_menu_selected, "right"),
-                KeyCode::Tab => sys_fetch(),
-                KeyCode::BackTab => main(),
-                KeyCode::Esc => process::exit(0),
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => sys_fetch(),
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => main(),
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
                 KeyCode::Enter => run_settings_menu_selected(settings_menu_selected, "right"),
                 KeyCode::Char(c) if c.is_digit(10) => { 
                     let num = c.to_digit(10).unwrap() as usize;
@@ -1107,12 +1162,12 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
             output.push_str(&format!(
                 "{}{}{}{} {} {}  {}{}{}",
                 SetForegroundColor(Color::Black),
-                SetBackgroundColor(get_color("foreground")),
+                SetBackgroundColor(get_color("main")),
                 spaces,
                 i,
                 "›",
                 menu_options[i],
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("theme")),
                 SetBackgroundColor(Color::Black),
                 cursor::MoveToColumn(width)
             ));
@@ -1121,12 +1176,12 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
             output.push_str("│");
             output.push_str(&format!(
                 "{}{}{} {}{} {}{}{}│\n",
-                SetForegroundColor(get_color("foreground")),
+                SetForegroundColor(get_color("main")),
                 spaces,
                 i,
                 SetForegroundColor(Color::DarkGrey),
                 "|",
-                SetForegroundColor(get_color("background")),
+                SetForegroundColor(get_color("theme")),
                 menu_options[i],
                 cursor::MoveToColumn(width)
             ));
@@ -1167,13 +1222,13 @@ fn main() {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
-                KeyCode::Up => if menu_selected > 0 { menu_selected -= 1 } else { menu_selected = menu_options.len() - 1 }
+                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => if menu_selected > 0 { menu_selected -= 1 } else { menu_selected = menu_options.len() - 1 }
                 KeyCode::Left => if menu_selected > 0 { menu_selected -= 1 } else { menu_selected = menu_options.len() - 1 }
-                KeyCode::Down => if menu_selected < menu_options.len() - 1 { menu_selected += 1 } else { menu_selected = 0 }
+                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => if menu_selected < menu_options.len() - 1 { menu_selected += 1 } else { menu_selected = 0 }
                 KeyCode::Right => if menu_selected < menu_options.len() - 1 { menu_selected += 1 } else { menu_selected = 0 }
-                KeyCode::Tab => settings_menu(),
-                KeyCode::BackTab => sys_fetch(),
-                KeyCode::Esc => process::exit(0),
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => sys_fetch(),
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
                 KeyCode::Char(c) if c == ' ' => { println!("DODAJ TUTAJ TO CO MIALES DODAC IDIOTO WALONY NIE ZAPOMNIJ BO BEDZIE PRZYPAL") }
                 KeyCode::Char(c) if c.is_digit(10) => { let num = c.to_digit(10).unwrap() as usize; if num < menu_options.len() { menu_selected = num } run_menu_selected(menu_selected, &menu_options.iter().map(|s| s.as_str()).collect::<Vec<&str>>()) }
                 KeyCode::Enter => run_menu_selected(menu_selected,&menu_options.iter().map(|s| s.as_str()).collect::<Vec<&str>>()),
