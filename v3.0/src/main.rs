@@ -995,7 +995,7 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
     let color_index = colors.iter().position(|&c| c == settings.color ).unwrap_or(0);
     let ping_delays = [10, 50, 100, 200, 500, 1000];
     let ping_delay_index = ping_delays.iter().position(|&c| c == settings.ping_delay ).unwrap_or(0);
-    let port_scan_timeouts = [10, 25, 50, 75, 100, 150, 200, 350, 500, 750, 1000];
+    let port_scan_timeouts = [10, 25, 50, 75, 100, 150, 200, 500, 750, 1000];
     let port_scan_timeout_index = port_scan_timeouts.iter().position(|&c| c == settings.port_scan_timeout ).unwrap_or(0);
     let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
     let micro_macro_key_index = micro_macro_keys.iter().position(|&c| c == settings.micro_macro_key ).unwrap_or(0);
