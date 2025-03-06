@@ -1,7 +1,3 @@
-use crossterm::cursor;
-use crossterm::event::{self, KeyCode, Event, KeyEvent, KeyEventKind};
-use crossterm::{style::{Color, SetForegroundColor, SetBackgroundColor}, terminal};
-use crossterm::execute;
 use std::process::Command;
 use std::process;
 use std::fs::{self, File};
@@ -9,10 +5,14 @@ use std::io::{self, Write, Read};
 use std::path::Path;
 use std::env;
 use std::time::{Duration, Instant};
-use std::sync::{Arc, Mutex};
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock, Mutex};
+use std::thread;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::error::Error;
+use crossterm::cursor;
+use crossterm::event::{self, KeyCode, Event, KeyEvent, KeyEventKind};
+use crossterm::{style::{Color, SetForegroundColor, SetBackgroundColor}, terminal};
+use crossterm::execute;
 use chrono::Local;
 use serde_derive::{Serialize, Deserialize};
 use toml;
@@ -178,7 +178,6 @@ fn get_time() -> String {
 
 fn get_color(color_type: &str) -> Color {
     let settings = Settings::load();
-
     match color_type {
         "theme" => {
             if settings.dark_theme {
@@ -314,22 +313,16 @@ fn render_top(current_option: &str, new_option: Option<&str>, new_option_selecte
 }
 
 static HELP_OPEN: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
-fn render_bottom(mid_length: u16) -> String {
+fn render_bottom(mid_length: u16, help_string: String, help_more_string: String) -> String {
     let settings = Settings::load();
     let (width, height) = terminal::size().unwrap();
     let (logo_0, _, _) = logo();
     let logo_0_lines: Vec<&str> = logo_0.lines().collect();
     let dashes = "─".repeat((width - 2) as usize);
     let help_open = HELP_OPEN.lock().unwrap();
-    let mut help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | select: $[ent]$ |");
+    let mut help_string = help_string;
     if *help_open { help_string += " less: $[h]$ |" } else { help_string += " more: $[h]$ |" };
     let mut help_more_height = 0;
-    let help_more_string = String::from(
-r#"help text
-for each
-option
-and maybe a footer"#
-    );
     let help_more_string_lines: Vec<&str> = help_more_string.lines().collect();
     if !settings.hide_help && *help_open { help_more_height = help_more_string.lines().count() as u16 }
     let mut output = String::new();
@@ -348,8 +341,19 @@ and maybe a footer"#
         if *help_open {
             for i in 0..help_more_string.lines().count() {
                 output.push_str(&format!("{}", cursor::MoveDown(1)));
-                output.push_str(&format!("{}", cursor::MoveToColumn(width / 2 - help_more_string_lines[i].len() as u16 / 2)));
-                output.push_str(help_more_string_lines[i]);
+                output.push_str(&format!("{}", cursor::MoveToColumn(width / 2 - help_more_string_lines[i].chars().filter(|&c| c != '$').count() as u16 / 2)));
+                let help_more_string_lines_parts: Vec<&str> = help_more_string_lines[i].split('$').collect();
+                for (i, part) in help_more_string_lines_parts.iter().enumerate() {
+                    if i % 2 == 1 {
+                        output.push_str(&format!("{}", SetForegroundColor(Color::Black)));
+                        output.push_str(&format!("{}", SetBackgroundColor(get_color("main"))));
+                        output.push_str(part);
+                        output.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
+                        output.push_str(&format!("{}", SetBackgroundColor(Color::Black)));
+                    } else {
+                        output.push_str(part);
+                    }
+                }
             }
         }
         output.push_str(&format!("{}", cursor::MoveToRow(height)));
@@ -378,12 +382,18 @@ and maybe a footer"#
 }
 
 fn ping_tool() {
+    let settings = Settings::load();
     static PINGS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
     static PING_SEQ: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
     static PING_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
-    fn add_ping(ping: String) {
+    fn add_ping(ping: String, help_more_string_lines: u16) {
+        let settings = Settings::load();
         let (_, height) = terminal::size().unwrap();
-        let max_pings = height.saturating_sub(12).max(1) as usize;
+        let mut help_length = 0;
+        if !settings.hide_help { help_length += 1 };
+        let help_open = HELP_OPEN.lock().unwrap();
+        if *help_open { help_length += help_more_string_lines }
+        let max_pings = height.saturating_sub(12 + help_length).max(1) as usize;
         let mut pings = PINGS.lock().unwrap();
         while pings.len() > max_pings {
             if !pings.is_empty() {
@@ -420,13 +430,17 @@ fn ping_tool() {
     fn get_ip() -> String { let ip = PING_IP.lock().unwrap(); ip.clone() }
     fn clear_ip() { let mut ip = PING_IP.lock().unwrap(); *ip = String::new() }
     let mut stdout = io::stdout();
-    let settings = Settings::load();
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change ip: $[ent]$ |");
+    let help_more_string = String::from(
+r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
+    );
+    let help_line_count = help_more_string.lines().count() as u16;
     let last_render_time = get_time();
     let (last_width, last_height) = terminal::size().unwrap();
     let mut needs_rendering = false;
     let mut output = String::new();
     output.push_str(&render_top("ping_tool", None, false));
-    output.push_str(&render_bottom(0));
+    output.push_str(&render_bottom(0, help_string, help_more_string));
     clear();
     print!("{}", output);
     stdout.flush().unwrap();
@@ -476,11 +490,11 @@ fn ping_tool() {
             match ping(ip) {
                 Some((ms, ttl)) => {
                     let ping_status = format!("Ping: {:.0} ms (seq={}, ttl={})", ms, PING_SEQ.lock().unwrap(), ttl);
-                    add_ping(ping_status);
+                    add_ping(ping_status, help_line_count);
                 },
                 None => {
                     let ping_status = format!("Ping to {} failed", ip);
-                    add_ping(ping_status);
+                    add_ping(ping_status, help_line_count);
                 }
             }
             let mut seq = PING_SEQ.lock().unwrap();
@@ -499,14 +513,20 @@ fn ping_tool() {
 }
 
 fn port_scan() {
+    let settings = Settings::load();
     static PORT_SCANS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
     static OPEN_PORTS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
     static PORT_NUM: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(0));
     static PORT_SCAN_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
     static PORT_RANGE: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
-    fn add_port_scan(port_scan: String) {
+    fn add_port_scan(port_scan: String, help_more_string_lines: u16) {
+        let settings = Settings::load();
         let (_, height) = terminal::size().unwrap();
-        let max_port_scans = height.saturating_sub(14).max(1) as usize;
+        let mut help_length = 0;
+        if !settings.hide_help { help_length += 1 };
+        let help_open = HELP_OPEN.lock().unwrap();
+        if *help_open { help_length += help_more_string_lines }
+        let max_port_scans = height.saturating_sub(14 + help_length).max(1) as usize;
         let mut port_scans = PORT_SCANS.lock().unwrap();
         while port_scans.len() > max_port_scans {
             if !port_scans.is_empty() {
@@ -536,11 +556,16 @@ fn port_scan() {
         let mut open_ports = OPEN_PORTS.lock().unwrap();
         if !open_ports.contains(&port_scan) { open_ports.push(port_scan) }
     }
-    fn print_open_ports() -> usize {
+    fn print_open_ports(help_more_string_lines: u16) -> usize {
+        let settings = Settings::load();
         let (_, height) = terminal::size().unwrap();
+        let mut help_length = 0;
+        if !settings.hide_help { help_length += 1 };
+        let help_open = HELP_OPEN.lock().unwrap();
+        if *help_open { help_length += help_more_string_lines }
         let mut stdout = io::stdout();
         let open_ports = OPEN_PORTS.lock().unwrap();
-        execute!(stdout, cursor::MoveTo(2, height - 2)).unwrap();
+        execute!(stdout, cursor::MoveTo(2, height - 2 - help_length)).unwrap();
         print!("Open Ports: ");
         let mut first = true;
         for open_port in open_ports.iter() {
@@ -573,12 +598,17 @@ fn port_scan() {
     fn get_port() -> String { let port = PORT_RANGE.lock().unwrap(); port.clone() }
     fn clear_port() { let mut port = PORT_RANGE.lock().unwrap(); *port = String::new() }
     let mut stdout = io::stdout();
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change ip: $[ent]$ |");
+    let help_more_string = String::from(
+r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
+    );
+    let help_line_count = help_more_string.lines().count() as u16;
     let last_render_time = get_time();
     let (last_width, last_height) = terminal::size().unwrap();
     let mut needs_rendering = false;
     let mut output = String::new();
     output.push_str(&render_top("port_scan", None, false));
-    output.push_str(&render_bottom(0));
+    output.push_str(&render_bottom(0, help_string, help_more_string));
     clear();
     print!("{}", output);
     stdout.flush().unwrap();
@@ -639,41 +669,46 @@ fn port_scan() {
         }
     }
     print_port_scans();
-    print_open_ports();
+    print_open_ports(help_line_count);
+    let mut handle: Option<thread::JoinHandle<()>> = None;
     loop {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
-                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); settings_menu() },
-                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); return },
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); settings_menu() },
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); return },
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
-                KeyCode::Enter => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
-                KeyCode::Char(c) if c == ' ' => { clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
+                KeyCode::Enter => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
+                KeyCode::Char(c) if c == ' ' => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
                 _ => {}
             }
         }
-        if last_port_scan.elapsed() >= Duration::ZERO {
+        if last_port_scan.elapsed() >= Duration::from_millis(settings.port_scan_timeout as u64) {
+            if let Some(h) = handle.take() { h.join().unwrap() }
             let port_num = get_port_num();
-            match check_port(ip, port_num) {
-                PortStatus::Open => {
-                    let port_status = format!("Port {} {}open{}", port_num, SetForegroundColor(get_color("main")), SetForegroundColor(get_color("theme")));
-                    add_port_scan(port_status);
-                    add_open_port(port_num.to_string());
-                    if port_num < u16::MAX { set_port_num(port_num + 1) }
+            let ip_clone = ip.to_string();
+            handle = Some(thread::spawn(move || {
+                match check_port(&ip_clone, port_num) {
+                    PortStatus::Open => {
+                        let port_status = format!("Port {} {}open{}", port_num, SetForegroundColor(get_color("main")), SetForegroundColor(get_color("theme")));
+                        add_port_scan(port_status, help_line_count);
+                        add_open_port(port_num.to_string());
+                        if port_num < u16::MAX { set_port_num(port_num + 1) }
+                    }
+                    PortStatus::Closed => {
+                        let port_status = format!("Port {} closed", port_num);
+                        add_port_scan(port_status, help_line_count);
+                        if port_num < u16::MAX { set_port_num(port_num + 1) }
+                    }
+                    PortStatus::Error(err) => {
+                        add_port_scan(err, help_line_count);
+                    }
                 }
-                PortStatus::Closed => {
-                    let port_status = format!("Port {} closed", port_num);
-                    add_port_scan(port_status);
-                    if port_num < u16::MAX { set_port_num(port_num + 1) }
-                }
-                PortStatus::Error(err) => {
-                    add_port_scan(err);
-                }
-            }
+            }));
             let num_port_scans = print_port_scans();
             execute!(stdout, cursor::MoveUp(num_port_scans as u16)).unwrap();
             last_port_scan = Instant::now();
-            print_open_ports();
+            print_open_ports(help_line_count);
         }
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
@@ -710,6 +745,10 @@ fn game_of_life() {
 
 fn sys_fetch() {
     let mut stdout = io::stdout();
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
+    let help_more_string = String::from(
+r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#
+    );
     let user_name = whoami::username();
     fn get_machine_name() -> String { { let output = Command::new("hostname").output().expect("Failed to get hostname"); String::from_utf8_lossy(&output.stdout).trim().to_string() } }
     let machine_name = get_machine_name();
@@ -927,7 +966,7 @@ fn sys_fetch() {
             cursor::MoveToColumn(width)
         ));
     }
-    output.push_str(&render_bottom(sys_fetch_logo.len() as u16));
+    output.push_str(&render_bottom(sys_fetch_logo.len() as u16, help_string, help_more_string));
     clear();
     print!("{}", output);
     stdout.flush().unwrap();
@@ -1028,6 +1067,11 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
 fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
     let settings = Settings::load();
     let mut stdout = io::stdout();
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
+    let help_more_string = String::from(
+r#"| change setting: $[ent]$ | select: $[0-9]$ |
+| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#
+    );
     let (width, _) = terminal::size().unwrap();
     let mut output = String::new();
     output.push_str(&render_top("settings", None, false));
@@ -1079,7 +1123,7 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
             ));
         }
     }
-    output.push_str(&&render_bottom(menu_options.len() as u16));
+    output.push_str(&&render_bottom(menu_options.len() as u16, help_string, help_more_string));
     clear();
     print!("{}", output);
     stdout.flush().unwrap();
@@ -1151,6 +1195,11 @@ fn run_file(path: &str) -> std::io::Result<()> {
 
 fn render_menu(menu_selected: usize, menu_options: &[&str]) {
     let mut stdout = io::stdout();
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | select: $[ent]$ |");
+    let help_more_string = String::from(
+r#"| special select: $[space]$ | select: $[0-9]$ |
+| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[←]/[↓]/[→]$ |"#
+    );
     let (width, _) = terminal::size().unwrap();
     let mut output = String::new();
     output.push_str(&render_top("menu", None, false));
@@ -1187,7 +1236,7 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
             ));
         }
     }
-    output.push_str(&&render_bottom(menu_options.len() as u16));
+    output.push_str(&&render_bottom(menu_options.len() as u16, help_string, help_more_string));
     clear();
     print!("{}", output);
     stdout.flush().unwrap();
