@@ -1250,8 +1250,6 @@ fn main() {
         "port_scan".to_string(),
         "micro_macro".to_string(),
         "macro".to_string(),
-        "quick_start".to_string(),
-        "quick_download".to_string(),
         "tetris".to_string(),
         "game_of_life".to_string(),
     ];
@@ -1278,7 +1276,7 @@ fn main() {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => sys_fetch(),
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
-                KeyCode::Char(c) if c == ' ' => { println!("DODAJ TUTAJ TO CO MIALES DODAC IDIOTO WALONY NIE ZAPOMNIJ BO BEDZIE PRZYPAL") }
+                KeyCode::Char(c) if c == ' ' => { println!("SPACE FUNCTIONALITY SOON") }
                 KeyCode::Char(c) if c.is_digit(10) => { let num = c.to_digit(10).unwrap() as usize; if num < menu_options.len() { menu_selected = num } run_menu_selected(menu_selected, &menu_options.iter().map(|s| s.as_str()).collect::<Vec<&str>>()) }
                 KeyCode::Enter => run_menu_selected(menu_selected,&menu_options.iter().map(|s| s.as_str()).collect::<Vec<&str>>()),
                 _ => {}
