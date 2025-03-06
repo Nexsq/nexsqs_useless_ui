@@ -727,14 +727,6 @@ fn macro_tool() {
     println!("macro_tool using enigo")
 }
 
-fn quick_start() {
-    println!("quick_start")
-}
-
-fn quick_download() {
-    println!("quick_download")
-}
-
 fn tetris() {
     println!("tetris")
 }
@@ -1175,10 +1167,8 @@ fn run_menu_selected(menu_selected: usize, menu_options: &[&str]) {
         1 => port_scan(),
         2 => micro_macro(),
         3 => macro_tool(),
-        4 => quick_start(),
-        5 => quick_download(),
-        6 => tetris(),
-        7 => game_of_life(),
+        4 => tetris(),
+        5 => game_of_life(),
         _ => {
             let _ = run_file(&settings.custom_options[menu_selected - (menu_options.len() - settings.custom_options.len())]);
         }
