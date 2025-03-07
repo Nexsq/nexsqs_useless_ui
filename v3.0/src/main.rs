@@ -720,67 +720,136 @@ r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
 
 fn micro_macro() {
     let settings = Settings::load();
-    fn micro_macro_settings() {
-        let settings = Settings::load();
-        let mut stdout = io::stdout();
+    fn render_micro_macro() {
         let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
         let help_more_string = String::from(
 r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#
         );
-        let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_timeout", "micro_macro_hotkey", "macro_hotkey", "hide_help", "show_config_files", "add_custom", "clear_custom"];
-        let mut settings_menu_selected = 0;
-        let last_render_time = get_time();
-        let (last_width, last_height) = terminal::size().unwrap();
-        let mut needs_rendering = false;
+        let mut stdout = io::stdout();
         let mut output = String::new();
-        output.push_str(&render_top("micro_macro_settings", Some("micro_macro"), true));
+        output.push_str(&render_top("micro_macro", Some("micro_macro_settings"), false));
         output.push_str(&render_bottom(0, help_string, help_more_string));
         clear();
         print!("{}", output);
         stdout.flush().unwrap();
+    }
+    fn micro_macro_settings() {
+        let mut settings = Settings::load();
+        fn render_micro_macro_settings(menu_selected: usize, menu_options: &[&str]) {
+            let settings = Settings::load();
+            let mut stdout = io::stdout();
+            let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
+            let help_more_string = String::from(
+r#"| change setting: $[ent]$ | select: $[0-9]$ |
+| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#
+            );
+            let (width, _) = terminal::size().unwrap();
+            let mut output = String::new();
+            output.push_str(&render_top("micro_macro_settings", Some("micro_macro"), true));
+            for i in 0..menu_options.len() {
+                if i == menu_selected {
+                    output.push_str("│");
+                    output.push_str(&format!(
+                        "{}{} {} {} {} {}{}{}{}",
+                        SetBackgroundColor(get_color("main")),
+                        SetForegroundColor(Color::Black),
+                        i,
+                        "›",
+                        menu_options[i],
+                        if menu_options[i] == "micro_macro_key" {
+                            settings.micro_macro_key.to_string() + " "
+                        } else if menu_options[i] == "micro_macro_delay" {
+                            let delay = settings.micro_macro_delay as usize;
+                            let (display_delay, delay_unit) = if delay <= 1000 { (delay, "ms") } else if delay > 60000 { (delay / 60000, "m") } else { (delay / 1000, "s") }; format!("{}{} ", display_delay, delay_unit)
+                        } else {
+                            " ".to_string()
+                        },
+                        SetForegroundColor(get_color("theme")),
+                        SetBackgroundColor(Color::Black),
+                        cursor::MoveToColumn(width)
+                    ));
+                    output.push_str("│\n");
+                } else {
+                    output.push_str("│");
+                    output.push_str(&format!(
+                        "{} {} {}{} {}{}{}│\n",
+                        SetForegroundColor(get_color("main")),
+                        i,
+                        SetForegroundColor(Color::DarkGrey),
+                        "|",
+                        SetForegroundColor(get_color("theme")),
+                        menu_options[i],
+                        cursor::MoveToColumn(width)
+                    ));
+                }
+            }
+            output.push_str(&render_bottom(2, help_string, help_more_string));
+            clear();
+            print!("{}", output);
+            stdout.flush().unwrap();
+        }
+        let micro_macro_settings_menu_options = ["micro_macro_key", "micro_macro_delay"];
+        let mut micro_macro_settings_menu_selected = 0;
+        let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
+        let mut micro_macro_key_index = micro_macro_keys.iter().position(|&c| c == settings.micro_macro_key ).unwrap_or(0);
+        let micro_macro_delays = [200, 500, 1000, 5000, 10000, 30000, 60000, 120000, 300000, 600000];
+        let mut micro_macro_delay_index = micro_macro_delays.iter().position(|&c| c == settings.micro_macro_delay ).unwrap_or(0);
+        let mut last_render_time = get_time();
+        let (mut last_width, mut last_height) = terminal::size().unwrap();
+        let mut needs_rendering = true;
         loop {
             if let Some(pressed_key) = get_key() {
                 needs_rendering = true;
                 match pressed_key {
+                    KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => if micro_macro_settings_menu_selected > 0 { micro_macro_settings_menu_selected -= 1 } else { micro_macro_settings_menu_selected = micro_macro_settings_menu_options.len() - 1 }
+                    KeyCode::Left => {
+                        match micro_macro_settings_menu_selected {
+                            0 => { if micro_macro_key_index > 0 { settings.set_micro_macro_key(micro_macro_keys[micro_macro_key_index - 1]) } else { settings.set_micro_macro_key(micro_macro_keys[micro_macro_keys.len() - 1]) }; if micro_macro_key_index > 0 {micro_macro_key_index -= 1 } else { micro_macro_key_index = micro_macro_keys.len() - 1 } },
+                            1 => { if micro_macro_delay_index > 0 { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delay_index - 1]) } else { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delays.len() - 1]) }; if micro_macro_delay_index > 0 { micro_macro_delay_index -= 1 } else { micro_macro_delay_index = micro_macro_delays.len() - 1 } },
+                            _ => {}
+                        }
+                    },
+                    KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => if micro_macro_settings_menu_selected < micro_macro_settings_menu_options.len() - 1 { micro_macro_settings_menu_selected += 1 } else { micro_macro_settings_menu_selected = 0 }
+                    KeyCode::Right => {
+                        match micro_macro_settings_menu_selected {
+                            0 => { settings.set_micro_macro_key(micro_macro_keys[(micro_macro_key_index + 1) % micro_macro_keys.len()]); micro_macro_key_index = (micro_macro_key_index + 1) % micro_macro_keys.len() },
+                            1 => { settings.set_micro_macro_delay(micro_macro_delays[(micro_macro_delay_index + 1) % micro_macro_delays.len()]); micro_macro_delay_index = (micro_macro_delay_index + 1) % micro_macro_delays.len() },
+                            _ => {}
+                        }
+                    },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                    KeyCode::Enter => {
+                        match micro_macro_settings_menu_selected {
+                            0 => { settings.set_micro_macro_key(micro_macro_keys[(micro_macro_key_index + 1) % micro_macro_keys.len()]); micro_macro_key_index += 1 },
+                            1 => { settings.set_micro_macro_delay(micro_macro_delays[(micro_macro_delay_index + 1) % micro_macro_delays.len()]); micro_macro_delay_index += 1 },
+                            _ => {}
+                        }
+                    },
+                    KeyCode::Char(c) if c.is_digit(10) => { 
+                        let num = c.to_digit(10).unwrap() as usize;
+                        if num < micro_macro_settings_menu_options.len() { 
+                            micro_macro_settings_menu_selected = num;
+                        };
+                    },
                     _ => {}
                 }
             }
             let current_time = get_time();
             let (width, height) = terminal::size().unwrap();
             if width != last_width || height != last_height || current_time != last_render_time || needs_rendering {
-                micro_macro_settings();
-                return;
+                render_micro_macro_settings(micro_macro_settings_menu_selected, &micro_macro_settings_menu_options);
+                last_render_time = current_time;
+                last_width = width;
+                last_height = height;
+                needs_rendering = false;
             }
         }
     }
-
-
-
-    let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
-    let micro_macro_key_index = micro_macro_keys.iter().position(|&c| c == settings.micro_macro_key ).unwrap_or(0);
-    let micro_macro_delays = [200, 500, 1000, 5000, 10000, 30000, 60000, 120000, 300000, 600000];
-    let micro_macro_delay_index = micro_macro_delays.iter().position(|&c| c == settings.micro_macro_delay ).unwrap_or(0);
-    let delay = settings.micro_macro_delay as usize; let (display_delay, delay_unit) = if delay <= 1000 { (delay, "ms") } else if delay > 60000 { (delay / 60000, "m") } else { (delay / 1000, "s") }; format!("{}{} ", display_delay, delay_unit);
-
-
-
-    let mut stdout = io::stdout();
-    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
-    let help_more_string = String::from(
-r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#
-    );
-    let last_render_time = get_time();
-    let (last_width, last_height) = terminal::size().unwrap();
-    let mut needs_rendering = false;
-    let mut output = String::new();
-    output.push_str(&render_top("micro_macro", Some("micro_macro_settings"), false));
-    output.push_str(&render_bottom(0, help_string, help_more_string));
-    clear();
-    print!("{}", output);
-    stdout.flush().unwrap();
+    let mut last_render_time = get_time();
+    let (mut last_width, mut last_height) = terminal::size().unwrap();
+    let mut needs_rendering = true;
 
 
 
@@ -808,14 +877,143 @@ r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
         if width != last_width || height != last_height || current_time != last_render_time || needs_rendering {
-            micro_macro();
-            return;
+            render_micro_macro();
+            last_render_time = current_time;
+            last_width = width;
+            last_height = height;
+            needs_rendering = false;
         }
     }
 }
 
 fn macro_tool() {
-    println!("macro_tool using enigo")
+    let settings = Settings::load();
+    fn render_macro_tool() {
+        let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
+        let help_more_string = String::from(
+r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#
+        );
+        let mut stdout = io::stdout();
+        let mut output = String::new();
+        output.push_str(&render_top("macro", Some("macro_settings"), false));
+        output.push_str(&render_bottom(0, help_string, help_more_string));
+        clear();
+        print!("{}", output);
+        stdout.flush().unwrap();
+    }
+    fn macro_tool_settings() {
+        let settings = Settings::load();
+        fn render_macro_tool_settings(menu_selected: usize, menu_options: &[&str]) {
+            let settings = Settings::load();
+            let mut stdout = io::stdout();
+            let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
+            let help_more_string = String::from(
+r#"| change setting: $[ent]$ | select: $[0-9]$ |
+| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#
+            );
+            let (width, _) = terminal::size().unwrap();
+            let mut output = String::new();
+            output.push_str(&render_top("macro_settings", Some("macro"), true));
+            for i in 0..menu_options.len() {
+                if i == menu_selected {
+                    output.push_str("│");
+                    output.push_str(&format!(
+                        "{}{} {} {} {} {}{}{}{}",
+                        SetBackgroundColor(get_color("main")),
+                        SetForegroundColor(Color::Black),
+                        i,
+                        "›",
+                        menu_options[i],
+                        if menu_options[i] == "setting1" {
+                            "test ".to_string()
+                        } else if menu_options[i] == "setting2" {
+                            "test ".to_string()
+                        } else {
+                            " ".to_string()
+                        },
+                        SetForegroundColor(get_color("theme")),
+                        SetBackgroundColor(Color::Black),
+                        cursor::MoveToColumn(width)
+                    ));
+                    output.push_str("│\n");
+                } else {
+                    output.push_str("│");
+                    output.push_str(&format!(
+                        "{} {} {}{} {}{}{}│\n",
+                        SetForegroundColor(get_color("main")),
+                        i,
+                        SetForegroundColor(Color::DarkGrey),
+                        "|",
+                        SetForegroundColor(get_color("theme")),
+                        menu_options[i],
+                        cursor::MoveToColumn(width)
+                    ));
+                }
+            }
+            output.push_str(&render_bottom(2, help_string, help_more_string));
+            clear();
+            print!("{}", output);
+            stdout.flush().unwrap();
+        }
+        let macro_settings_menu_options = ["setting1", "setting2"];
+        let mut macro_settings_menu_selected = 0;
+        let mut last_render_time = get_time();
+        let (mut last_width, mut last_height) = terminal::size().unwrap();
+        let mut needs_rendering = true;
+        loop {
+            if let Some(pressed_key) = get_key() {
+                needs_rendering = true;
+                match pressed_key {
+                    KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => if macro_settings_menu_selected > 0 { macro_settings_menu_selected -= 1 } else { macro_settings_menu_selected = macro_settings_menu_options.len() - 1 }
+                    KeyCode::Left => {},
+                    KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => if macro_settings_menu_selected < macro_settings_menu_options.len() - 1 { macro_settings_menu_selected += 1 } else { macro_settings_menu_selected = 0 }
+                    KeyCode::Right => {},
+                    KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
+                    KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
+                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                    KeyCode::Char(c) if c.is_digit(10) => { 
+                        let num = c.to_digit(10).unwrap() as usize;
+                        if num < macro_settings_menu_options.len() { 
+                            macro_settings_menu_selected = num;
+                        };
+                    },
+                    _ => {}
+                }
+            }
+            let current_time = get_time();
+            let (width, height) = terminal::size().unwrap();
+            if width != last_width || height != last_height || current_time != last_render_time || needs_rendering {
+                render_macro_tool_settings(macro_settings_menu_selected, &macro_settings_menu_options);
+                last_render_time = current_time;
+                last_width = width;
+                last_height = height;
+                needs_rendering = false;
+            }
+        }
+    }
+    let mut last_render_time = get_time();
+    let (mut last_width, mut last_height) = terminal::size().unwrap();
+    let mut needs_rendering = true;
+    loop {
+        if let Some(pressed_key) = get_key() {
+            needs_rendering = true;
+            match pressed_key {
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => macro_tool_settings(),
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                _ => {}
+            }
+        }
+        let current_time = get_time();
+        let (width, height) = terminal::size().unwrap();
+        if width != last_width || height != last_height || current_time != last_render_time || needs_rendering {
+            render_macro_tool();
+            last_render_time = current_time;
+            last_width = width;
+            last_height = height;
+            needs_rendering = false;
+        }
+    }
 }
 
 fn tetris() {
@@ -1149,12 +1347,12 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
 
 fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
     let settings = Settings::load();
-    let mut stdout = io::stdout();
     let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
     let help_more_string = String::from(
 r#"| change setting: $[ent]$ | select: $[0-9]$ |
 | quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#
     );
+    let mut stdout = io::stdout();
     let (width, _) = terminal::size().unwrap();
     let mut output = String::new();
     output.push_str(&render_top("settings", None, false));
@@ -1275,12 +1473,12 @@ fn run_file(path: &str) -> std::io::Result<()> {
 }
 
 fn render_menu(menu_selected: usize, menu_options: &[&str]) {
-    let mut stdout = io::stdout();
     let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | select: $[ent]$ |");
     let help_more_string = String::from(
 r#"| special select: $[space]$ | select: $[0-9]$ |
 | quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[←]/[↓]/[→]$ |"#
     );
+    let mut stdout = io::stdout();
     let (width, _) = terminal::size().unwrap();
     let mut output = String::new();
     output.push_str(&render_top("menu", None, false));
