@@ -9,6 +9,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::thread;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::error::Error;
+use rand::Rng;
 use crossterm::cursor;
 use crossterm::event::{self, KeyCode, Event, KeyEvent, KeyEventKind};
 use crossterm::{style::{Color, SetForegroundColor, SetBackgroundColor}, terminal};
@@ -17,7 +18,9 @@ use chrono::Local;
 use serde_derive::{Serialize, Deserialize};
 use toml;
 use sysinfo::System;
+use winapi::um::winbase::STARTF_USECOUNTCHARS;
 use wmi::{COMLibrary, WMIConnection};
+use enigo::{Button, Coordinate, Direction::{Click, Press, Release}, Enigo, Key, Keyboard, Mouse, Settings as EnigoSettings};
 
 fn version() -> String {
     let version = "v3.0";
@@ -52,10 +55,12 @@ fn main_options() -> Vec<String> {
 struct Settings {
     color: String,
     dark_theme: bool,
-    ping_delay: u32,
-    port_scan_timeout: u32,
+    ping_delay: u64,
+    port_scan_timeout: u64,
+    micro_macro_hotkey: String,
     micro_macro_key: String,
-    micro_macro_delay: u32,
+    micro_macro_delay: u64,
+    macro_hotkey: String,
     hide_help: bool,
     show_config_files: bool,
     custom_options: Vec<String>
@@ -67,8 +72,10 @@ impl Settings {
             dark_theme: false,
             ping_delay: 500,
             port_scan_timeout: 500,
+            micro_macro_hotkey: "None".to_string(),
             micro_macro_key: "F15".to_string(),
             micro_macro_delay: 30000,
+            macro_hotkey: "None".to_string(),
             hide_help: false,
             show_config_files: false,
             custom_options: Vec::new()
@@ -122,20 +129,28 @@ impl Settings {
         self.dark_theme = new_value;
         self.save();
     }
-    fn set_ping_delay(&mut self, new_delay: u32) {
+    fn set_ping_delay(&mut self, new_delay: u64) {
         self.ping_delay = new_delay.clamp(0, 4294967295);
         self.save();
     }
-    fn set_port_scan_timeout(&mut self, new_delay: u32) {
+    fn set_port_scan_timeout(&mut self, new_delay: u64) {
         self.port_scan_timeout = new_delay.clamp(0, 4294967295);
+        self.save();
+    }
+    fn set_micro_macro_hotkey(&mut self, new_hotkey: &str) {
+        self.micro_macro_hotkey = new_hotkey.to_string();
         self.save();
     }
     fn set_micro_macro_key(&mut self, new_key: &str) {
         self.micro_macro_key = new_key.to_string();
         self.save();
     }
-    fn set_micro_macro_delay(&mut self, new_delay: u32) {
+    fn set_micro_macro_delay(&mut self, new_delay: u64) {
         self.micro_macro_delay = new_delay.clamp(0, 4294967295);
+        self.save();
+    }
+    fn set_macro_hotkey(&mut self, new_hotkey: &str) {
+        self.macro_hotkey = new_hotkey.to_string();
         self.save();
     }
     fn set_hide_help(&mut self, new_value: bool) {
@@ -383,10 +398,27 @@ fn render_bottom(mid_length: u16, help_string: String, help_more_string: String)
 
 fn ping_tool() {
     let settings = Settings::load();
-    static PINGS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
-    static PING_SEQ: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
-    static PING_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
-    fn add_ping(ping: String, help_more_string_lines: u16) {
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change ip: $[ent]$ |");
+    let help_more_string = String::from(
+r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
+    );
+    fn render_ping_tool(help_string: &String, help_more_string: &String, ip: &String) {
+        let mut stdout = io::stdout();
+        let mut output = String::new();
+        let (width, _) = terminal::size().unwrap();
+        output.push_str(&render_top("ping_tool", None, false));
+        output.push_str(&format!(
+            "│ Pinging: {}{}│",
+            ip,
+            cursor::MoveToColumn(width),
+        ));
+        output.push_str(&render_bottom(1, help_string.clone(), help_more_string.clone()));
+        output.push_str(&format!("{}", cursor::MoveUp(1)));
+        clear();
+        print!("{}", output);
+        stdout.flush().unwrap();
+    }
+    fn add_ping(pings: &mut Vec<String>, ping: String, help_more_string_lines: u16) {
         let settings = Settings::load();
         let (_, height) = terminal::size().unwrap();
         let mut help_length = 0;
@@ -394,7 +426,6 @@ fn ping_tool() {
         let help_open = HELP_OPEN.lock().unwrap();
         if *help_open { help_length += help_more_string_lines }
         let max_pings = height.saturating_sub(12 + help_length).max(1) as usize;
-        let mut pings = PINGS.lock().unwrap();
         while pings.len() > max_pings {
             if !pings.is_empty() {
                 pings.remove(0);
@@ -402,11 +433,10 @@ fn ping_tool() {
         }
         pings.push(ping);
     }
-    fn print_pings() -> usize {
+    fn print_pings(pings: &mut Vec<String>) -> usize {
         let (width, _) = terminal::size().unwrap();
         let mut stdout = io::stdout();
         let start_y = 9;
-        let pings = PINGS.lock().unwrap();
         for i in 0..pings.len() {
             execute!(stdout, cursor::MoveTo(0, start_y + i as u16)).unwrap();
             print!("\r│{}│", " ".repeat(width as usize - 2));
@@ -418,45 +448,23 @@ fn ping_tool() {
         stdout.flush().unwrap();
         pings.len()
     }
-    fn clear_pings() { let mut pings = PINGS.lock().unwrap(); pings.clear() }
-    fn clear_seqs() { let mut seq = PING_SEQ.lock().unwrap(); *seq = 1 }
-    fn set_ip() {
-        let mut ip = PING_IP.lock().unwrap();
-        let mut new_ip = String::new();
-        io::stdin().read_line(&mut new_ip).unwrap();
-        let new_ip = new_ip.trim();
-        *ip = new_ip.to_string()
-    }
-    fn get_ip() -> String { let ip = PING_IP.lock().unwrap(); ip.clone() }
-    fn clear_ip() { let mut ip = PING_IP.lock().unwrap(); *ip = String::new() }
-    let mut stdout = io::stdout();
-    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change ip: $[ent]$ |");
-    let help_more_string = String::from(
-r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
-    );
+    let mut pings = Vec::new();
+    let mut ping_seq = 1;
+    let mut ip = String::new();
     let help_line_count = help_more_string.lines().count() as u16;
-    let last_render_time = get_time();
-    let (last_width, last_height) = terminal::size().unwrap();
-    let mut needs_rendering = false;
-    let mut output = String::new();
-    output.push_str(&render_top("ping_tool", None, false));
-    output.push_str(&render_bottom(0, help_string, help_more_string));
-    clear();
-    print!("{}", output);
-    stdout.flush().unwrap();
+    let mut last_render_time = get_time();
+    let (mut last_width, mut last_height) = terminal::size().unwrap();
+    let mut needs_rendering = true;
+    let mut stdout = io::stdout();
+    render_ping_tool(&help_string, &help_more_string, &ip);
     execute!(stdout, cursor::MoveUp(1)).unwrap();
-    let mut ip = get_ip();
-    if ip.is_empty() {
-        print!("Pinging: ");
-        stdout.flush().unwrap();
-        set_ip();
-        ip = get_ip()
-    } else {
-        print!("Pinging: {}", ip)
-    }
-    if ip.is_empty() {
-        return
-    }
+    print!("Pinging: ");
+    stdout.flush().unwrap();
+    let mut new_ip = String::new();
+    io::stdin().read_line(&mut new_ip).unwrap();
+    let new_ip = new_ip.trim();
+    ip = new_ip.to_string();
+    if ip.is_empty() { return };
     let ip = ip.trim();
     let mut last_ping = Instant::now();
     fn ping(ip: &str) -> Option<(f64, u32)> {
@@ -473,52 +481,81 @@ r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
         }
         None
     }
-    print_pings();
+    print_pings(&mut pings);
     loop {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
-                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => { clear_pings(); clear_seqs(); clear_ip(); settings_menu() },
-                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => { clear_pings(); clear_seqs(); clear_ip(); return },
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => { settings_menu() },
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => { return },
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
-                KeyCode::Enter => { clear_pings(); clear_seqs(); clear_ip(); ping_tool(); return }
-                KeyCode::Char(c) if c == ' ' => { clear_pings(); clear_seqs(); clear_ip(); ping_tool(); return }
+                KeyCode::Enter => { ping_tool(); return }
+                KeyCode::Char(c) if c == ' ' => { ping_tool(); return }
                 _ => {}
             }
         }
-        if last_ping.elapsed() >= Duration::from_millis(settings.ping_delay as u64) {
+        if last_ping.elapsed() >= Duration::from_millis(settings.ping_delay) {
             match ping(ip) {
                 Some((ms, ttl)) => {
-                    let ping_status = format!("Ping: {:.0} ms (seq={}, ttl={})", ms, PING_SEQ.lock().unwrap(), ttl);
-                    add_ping(ping_status, help_line_count);
+                    let ping_status = format!("Ping: {:.0} ms (seq={}, ttl={})", ms, ping_seq, ttl);
+                    add_ping(&mut pings, ping_status, help_line_count);
                 },
                 None => {
                     let ping_status = format!("Ping to {} failed", ip);
-                    add_ping(ping_status, help_line_count);
+                    add_ping(&mut pings, ping_status, help_line_count);
                 }
             }
-            let mut seq = PING_SEQ.lock().unwrap();
-            *seq += 1;
-            let num_pings = print_pings();
+            ping_seq += 1;
+            let num_pings = print_pings(&mut pings);
             execute!(stdout, cursor::MoveUp(num_pings as u16)).unwrap();
             last_ping = Instant::now();
         }
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
         if width != last_width || height != last_height || current_time != last_render_time || needs_rendering {
-            ping_tool();
-            return;
+            render_ping_tool(&help_string, &help_more_string, &ip.to_string());
+            last_render_time = current_time;
+            last_width = width;
+            last_height = height;
+            needs_rendering = false;
         }
     }
 }
 
 fn port_scan() {
     let settings = Settings::load();
-    static PORT_SCANS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
-    static OPEN_PORTS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
-    static PORT_NUM: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(0));
-    static PORT_SCAN_IP: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
-    static PORT_RANGE: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change ip: $[ent]$ |");
+    let help_more_string = String::from(
+r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
+    );
+    fn render_port_scan(help_string: &String, help_more_string: &String, ip: &String, port: i16) {
+        let mut stdout = io::stdout();
+        let mut output = String::new();
+        let (width, _) = terminal::size().unwrap();
+        output.push_str(&render_top("port_scan", None, false));
+        output.push_str(&format!(
+            "│ Ip: {}{}│",
+            ip,
+            cursor::MoveToColumn(width),
+        ));
+        if port == -1 {
+            output.push_str(&format!(
+                "│ Port: {}│",
+                cursor::MoveToColumn(width),
+            ));
+        } else {
+            output.push_str(&format!(
+                "│ Port: {}{}│",
+                port,
+                cursor::MoveToColumn(width),
+            ));
+        }
+        output.push_str(&render_bottom(2, help_string.clone(), help_more_string.clone()));
+        output.push_str(&format!("{}", cursor::MoveUp(2)));
+        clear();
+        print!("{}", output);
+        stdout.flush().unwrap();
+    }
     fn add_port_scan(port_scan: String, help_more_string_lines: u16) {
         let settings = Settings::load();
         let (_, height) = terminal::size().unwrap();
@@ -535,11 +572,11 @@ fn port_scan() {
         }
         port_scans.push(port_scan);
     }
-    fn print_port_scans() -> usize {
+    fn clear_port_scans() { let mut port_scans = PORT_SCANS.lock().unwrap(); port_scans.clear() }
+    fn print_port_scans(port_scans: &Vec<String>) -> usize {
         let (width, _) = terminal::size().unwrap();
         let mut stdout = io::stdout();
         let start_y = 10;
-        let port_scans = PORT_SCANS.lock().unwrap();
         for i in 0..port_scans.len() {
             execute!(stdout, cursor::MoveTo(0, start_y + i as u16)).unwrap();
             print!("\r│{}│", " ".repeat(width as usize - 2));
@@ -551,12 +588,11 @@ fn port_scan() {
         stdout.flush().unwrap();
         port_scans.len()
     }
-    fn clear_port_scans() { let mut port_scans = PORT_SCANS.lock().unwrap(); port_scans.clear() }
-    fn add_open_port(port_scan: String) {
-        let mut open_ports = OPEN_PORTS.lock().unwrap();
+    fn add_open_port(port_scan: String, open_ports: &mut Vec<String>) {
         if !open_ports.contains(&port_scan) { open_ports.push(port_scan) }
     }
-    fn print_open_ports(help_more_string_lines: u16) -> usize {
+    fn clear_open_ports() { let mut open_ports = OPEN_PORTS.lock().unwrap(); open_ports.clear() }
+    fn print_open_ports(help_more_string_lines: u16, open_ports: &Vec<String>) -> usize {
         let settings = Settings::load();
         let (_, height) = terminal::size().unwrap();
         let mut help_length = 0;
@@ -564,7 +600,6 @@ fn port_scan() {
         let help_open = HELP_OPEN.lock().unwrap();
         if *help_open { help_length += help_more_string_lines }
         let mut stdout = io::stdout();
-        let open_ports = OPEN_PORTS.lock().unwrap();
         execute!(stdout, cursor::MoveTo(2, height - 2 - help_length)).unwrap();
         print!("Open Ports: ");
         let mut first = true;
@@ -575,80 +610,42 @@ fn port_scan() {
         stdout.flush().unwrap();
         open_ports.len()
     }
-    fn clear_open_ports() { let mut open_ports = OPEN_PORTS.lock().unwrap(); open_ports.clear() }
-    fn set_port_num(new_port_num: u16) { let mut num = PORT_NUM.lock().unwrap(); *num = new_port_num }
     fn get_port_num() -> u16 { let num = PORT_NUM.lock().unwrap(); *num }
+    fn set_port_num(new_port_num: u16) { let mut num = PORT_NUM.lock().unwrap(); *num = new_port_num }
     fn clear_port_num() { let mut num = PORT_NUM.lock().unwrap(); *num = 0 }
-    fn set_ip() {
-        let mut ip = PORT_SCAN_IP.lock().unwrap();
-        let mut new_ip = String::new();
-        io::stdin().read_line(&mut new_ip).unwrap();
-        let new_ip = new_ip.trim();
-        *ip = new_ip.to_string()
-    }
-    fn get_ip() -> String { let ip = PORT_SCAN_IP.lock().unwrap(); ip.clone() }
-    fn clear_ip() { let mut ip = PORT_SCAN_IP.lock().unwrap(); *ip = String::new() }
-    fn set_port() {
-        let mut port = PORT_RANGE.lock().unwrap();
-        let mut new_port = String::new();
-        io::stdin().read_line(&mut new_port).unwrap();
-        let new_port = new_port.trim();
-        *port = new_port.to_string()
-    }
-    fn get_port() -> String { let port = PORT_RANGE.lock().unwrap(); port.clone() }
-    fn clear_port() { let mut port = PORT_RANGE.lock().unwrap(); *port = String::new() }
-    let mut stdout = io::stdout();
-    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change ip: $[ent]$ |");
-    let help_more_string = String::from(
-r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
-    );
+    static PORT_SCANS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
+    static OPEN_PORTS: LazyLock<Arc<Mutex<Vec<String>>>> = LazyLock::new(|| { Arc::new(Mutex::new(Vec::new())) });
+    static PORT_NUM: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(0));
+    let mut ip = String::new();
     let help_line_count = help_more_string.lines().count() as u16;
-    let last_render_time = get_time();
-    let (last_width, last_height) = terminal::size().unwrap();
-    let mut needs_rendering = false;
-    let mut output = String::new();
-    output.push_str(&render_top("port_scan", None, false));
-    output.push_str(&render_bottom(0, help_string, help_more_string));
-    clear();
-    print!("{}", output);
-    stdout.flush().unwrap();
+    let mut last_render_time = get_time();
+    let (mut last_width, mut last_height) = terminal::size().unwrap();
+    let mut needs_rendering = true;
+    let mut stdout = io::stdout();
+    render_port_scan(&help_string, &help_more_string, &ip, -1);
     execute!(stdout, cursor::MoveUp(1)).unwrap();
-    let mut ip = get_ip();
-    if ip.is_empty() {
-        print!("Ip: ");
-        stdout.flush().unwrap();
-        set_ip();
-        ip = get_ip()
-    } else {
-        print!("Ip: {}", ip);
-        execute!(stdout, cursor::MoveDown(1)).unwrap()
-    }
-    if ip.is_empty() {
-        return
-    }
+    print!("Ip: ");
+    stdout.flush().unwrap();
+    let mut new_ip = String::new();
+    io::stdin().read_line(&mut new_ip).unwrap();
+    let new_ip = new_ip.trim();
+    ip = new_ip.to_string();
+    if ip.is_empty() { return }
     let ip = ip.trim();
     execute!(stdout, cursor::MoveToColumn(2)).unwrap();
-    let mut port = get_port();
-    if port.is_empty() {
-        print!("Starting port: ");
-        stdout.flush().unwrap();
-        set_port();
-        port = get_port()
-    } else {
-        print!("Starting port: {}", port)
-    }
-    if port.is_empty() {
-        clear_ip(); return
-    }
+    print!("Port: ");
+    stdout.flush().unwrap();
+    let mut port = String::new();
+    io::stdin().read_line(&mut port).unwrap();
     let port = port.trim();
-    if get_port_num() == 0 {
-        if let Ok(port) = port.parse::<u16>() {
-            set_port_num(port);
-        } else {
-            execute!(stdout, cursor::MoveToColumn(2)).unwrap();
-            eprintln!("Error: Invalid port '{}'", port);
-        }
+    if port.is_empty() { return }
+    if let Ok(port) = port.parse::<u16>() {
+        set_port_num(port);
+    } else {
+        execute!(stdout, cursor::MoveToColumn(2)).unwrap();
+        eprintln!("Error: Invalid port '{}'", port);
     }
+    let starting_port = port;
     let mut last_port_scan = Instant::now();
     enum PortStatus { Open, Closed, Error(String) }
     fn check_port(ip: &str, port: u16) -> PortStatus {
@@ -657,7 +654,7 @@ r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
         match address.to_socket_addrs() {
             Ok(mut addrs) => {
                 if let Some(addr) = addrs.next() {
-                    match TcpStream::connect_timeout(&addr, Duration::from_millis(settings.port_scan_timeout as u64)) {
+                    match TcpStream::connect_timeout(&addr, Duration::from_millis(settings.port_scan_timeout)) {
                         Ok(_) => PortStatus::Open,
                         Err(_) => PortStatus::Closed,
                     }
@@ -668,59 +665,153 @@ r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#
             Err(_) => PortStatus::Error(format!("Error: Unable to resolve IP address '{}'", ip)),
         }
     }
-    print_port_scans();
-    print_open_ports(help_line_count);
+    print_port_scans(&PORT_SCANS.lock().unwrap());
+    print_open_ports(help_line_count, &OPEN_PORTS.lock().unwrap());
     let mut handle: Option<thread::JoinHandle<()>> = None;
     loop {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
-                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); settings_menu() },
-                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); return },
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); settings_menu() },
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); return },
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
-                KeyCode::Enter => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
-                KeyCode::Char(c) if c == ' ' => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); clear_ip(); clear_port(); port_scan(); return }
+                KeyCode::Enter => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); port_scan(); return }
+                KeyCode::Char(c) if c == ' ' => { if let Some(h) = handle.take() { h.join().unwrap(); }; clear_port_scans(); clear_open_ports(); clear_port_num(); port_scan(); return }
                 _ => {}
             }
         }
-        if last_port_scan.elapsed() >= Duration::from_millis(settings.port_scan_timeout as u64) {
+        if last_port_scan.elapsed() >= Duration::from_millis(settings.port_scan_timeout) {
             if let Some(h) = handle.take() { h.join().unwrap() }
-            let port_num = get_port_num();
             let ip_clone = ip.to_string();
             handle = Some(thread::spawn(move || {
-                match check_port(&ip_clone, port_num) {
+                match check_port(&ip_clone, get_port_num()) {
                     PortStatus::Open => {
-                        let port_status = format!("Port {} {}open{}", port_num, SetForegroundColor(get_color("main")), SetForegroundColor(get_color("theme")));
+                        let port_status = format!("Port {} {}open{}", get_port_num(), SetForegroundColor(get_color("main")), SetForegroundColor(get_color("theme")));
                         add_port_scan(port_status, help_line_count);
-                        add_open_port(port_num.to_string());
-                        if port_num < u16::MAX { set_port_num(port_num + 1) }
+                        add_open_port(get_port_num().to_string(), &mut OPEN_PORTS.lock().unwrap());
+                        if get_port_num() < u16::MAX { set_port_num(get_port_num() + 1) }
                     }
                     PortStatus::Closed => {
-                        let port_status = format!("Port {} closed", port_num);
+                        let port_status = format!("Port {} closed", get_port_num());
                         add_port_scan(port_status, help_line_count);
-                        if port_num < u16::MAX { set_port_num(port_num + 1) }
+                        if get_port_num() < u16::MAX { set_port_num(get_port_num() + 1) }
                     }
                     PortStatus::Error(err) => {
                         add_port_scan(err, help_line_count);
                     }
                 }
             }));
-            let num_port_scans = print_port_scans();
+            let num_port_scans = print_port_scans(&PORT_SCANS.lock().unwrap());
             execute!(stdout, cursor::MoveUp(num_port_scans as u16)).unwrap();
             last_port_scan = Instant::now();
-            print_open_ports(help_line_count);
+            print_open_ports(help_line_count, &OPEN_PORTS.lock().unwrap());
         }
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
         if width != last_width || height != last_height || current_time != last_render_time || needs_rendering {
-            port_scan();
-            return;
+            render_port_scan(&help_string, &help_more_string, &ip.to_string(), starting_port.parse::<i16>().unwrap_or(0));
+            last_render_time = current_time;
+            last_width = width;
+            last_height = height;
+            needs_rendering = false;
         }
     }
 }
 
 fn micro_macro() {
-    println!("micro_macro using enigo")
+    let settings = Settings::load();
+    fn micro_macro_settings() {
+        let settings = Settings::load();
+        let mut stdout = io::stdout();
+        let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
+        let help_more_string = String::from(
+r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#
+        );
+        let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_timeout", "micro_macro_hotkey", "macro_hotkey", "hide_help", "show_config_files", "add_custom", "clear_custom"];
+        let mut settings_menu_selected = 0;
+        let last_render_time = get_time();
+        let (last_width, last_height) = terminal::size().unwrap();
+        let mut needs_rendering = false;
+        let mut output = String::new();
+        output.push_str(&render_top("micro_macro_settings", Some("micro_macro"), true));
+        output.push_str(&render_bottom(0, help_string, help_more_string));
+        clear();
+        print!("{}", output);
+        stdout.flush().unwrap();
+        loop {
+            if let Some(pressed_key) = get_key() {
+                needs_rendering = true;
+                match pressed_key {
+                    KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
+                    KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
+                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                    _ => {}
+                }
+            }
+            let current_time = get_time();
+            let (width, height) = terminal::size().unwrap();
+            if width != last_width || height != last_height || current_time != last_render_time || needs_rendering {
+                micro_macro_settings();
+                return;
+            }
+        }
+    }
+
+
+
+    let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
+    let micro_macro_key_index = micro_macro_keys.iter().position(|&c| c == settings.micro_macro_key ).unwrap_or(0);
+    let micro_macro_delays = [200, 500, 1000, 5000, 10000, 30000, 60000, 120000, 300000, 600000];
+    let micro_macro_delay_index = micro_macro_delays.iter().position(|&c| c == settings.micro_macro_delay ).unwrap_or(0);
+    let delay = settings.micro_macro_delay as usize; let (display_delay, delay_unit) = if delay <= 1000 { (delay, "ms") } else if delay > 60000 { (delay / 60000, "m") } else { (delay / 1000, "s") }; format!("{}{} ", display_delay, delay_unit);
+
+
+
+    let mut stdout = io::stdout();
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
+    let help_more_string = String::from(
+r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#
+    );
+    let last_render_time = get_time();
+    let (last_width, last_height) = terminal::size().unwrap();
+    let mut needs_rendering = false;
+    let mut output = String::new();
+    output.push_str(&render_top("micro_macro", Some("micro_macro_settings"), false));
+    output.push_str(&render_bottom(0, help_string, help_more_string));
+    clear();
+    print!("{}", output);
+    stdout.flush().unwrap();
+
+
+
+    // let mut enigo = Enigo::new(&EnigoSettings::default()).unwrap();
+    // thread::sleep(Duration::from_millis(settings.micro_macro_delay));
+    // match settings.micro_macro_key.as_str() {
+    //     "F15" => { enigo.key(Key::F15, Click).ok(); },
+    //     "RandomNum" => { enigo.key(Key::Unicode(char::from_digit(rand::thread_rng().gen_range(0..=9), 10).unwrap()), Click).ok(); },
+    //     _ => {}
+    // }
+    // println!("micro_macro using enigo");
+
+
+
+    loop {
+        if let Some(pressed_key) = get_key() {
+            needs_rendering = true;
+            match pressed_key {
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => micro_macro_settings(),
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                _ => {}
+            }
+        }
+        let current_time = get_time();
+        let (width, height) = terminal::size().unwrap();
+        if width != last_width || height != last_height || current_time != last_render_time || needs_rendering {
+            micro_macro();
+            return;
+        }
+    }
 }
 
 fn macro_tool() {
@@ -820,7 +911,7 @@ r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#
             "{} GB / {} GB ({}%)",
             total_used_gb,
             total_size_gb,
-            usage_percentage.round() as u64
+            usage_percentage.round()
         ))
     }
     let disk_info = get_disk_info().unwrap_or_else(|_| "Unknown Disk Info".to_string());
@@ -989,10 +1080,10 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
     let ping_delay_index = ping_delays.iter().position(|&c| c == settings.ping_delay ).unwrap_or(0);
     let port_scan_timeouts = [10, 25, 50, 75, 100, 150, 200, 500, 750, 1000];
     let port_scan_timeout_index = port_scan_timeouts.iter().position(|&c| c == settings.port_scan_timeout ).unwrap_or(0);
-    let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
-    let micro_macro_key_index = micro_macro_keys.iter().position(|&c| c == settings.micro_macro_key ).unwrap_or(0);
-    let micro_macro_delays = [200, 500, 1000, 5000, 10000, 30000, 60000, 120000, 300000, 600000];
-    let micro_macro_delay_index = micro_macro_delays.iter().position(|&c| c == settings.micro_macro_delay ).unwrap_or(0);
+    let micro_macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F10", "H", "ALT+H"];
+    let micro_macro_hotkey_index = micro_macro_hotkeys.iter().position(|&c| c == settings.micro_macro_hotkey ).unwrap_or(0);
+    let macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F10", "H", "ALT+H"];
+    let macro_hotkey_index = macro_hotkeys.iter().position(|&c| c == settings.macro_hotkey ).unwrap_or(0);
     match direction {
         "left" => {
             match settings_menu_selected {
@@ -1000,8 +1091,8 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 1 => settings.set_dark_theme(!settings.dark_theme),
                 2 => { if ping_delay_index > 0 { settings.set_ping_delay(ping_delays[ping_delay_index - 1]) } else { settings.set_ping_delay(ping_delays[ping_delays.len() - 1]) } }
                 3 => { if port_scan_timeout_index > 0 { settings.set_port_scan_timeout(port_scan_timeouts[port_scan_timeout_index - 1]) } else { settings.set_port_scan_timeout(port_scan_timeouts[port_scan_timeouts.len() - 1]) } }
-                4 => { if micro_macro_key_index > 0 { settings.set_micro_macro_key(micro_macro_keys[micro_macro_key_index - 1]) } else { settings.set_micro_macro_key(micro_macro_keys[micro_macro_keys.len() - 1]) } }
-                5 => { if micro_macro_delay_index > 0 { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delay_index - 1]) } else { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delays.len() - 1]) } }
+                4 => { if micro_macro_hotkey_index > 0 { settings.set_micro_macro_hotkey(micro_macro_hotkeys[micro_macro_hotkey_index - 1]) } else { settings.set_micro_macro_hotkey(micro_macro_hotkeys[micro_macro_hotkeys.len() - 1]) } }
+                5 => { if macro_hotkey_index > 0 { settings.set_macro_hotkey(macro_hotkeys[macro_hotkey_index - 1]) } else { settings.set_macro_hotkey(macro_hotkeys[macro_hotkeys.len() - 1]) } }
                 6 => settings.set_hide_help(!settings.hide_help),
                 7 => {
                     {
@@ -1029,8 +1120,8 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 1 => settings.set_dark_theme(!settings.dark_theme),
                 2 => settings.set_ping_delay(ping_delays[(ping_delay_index + 1) % ping_delays.len()]),
                 3 => settings.set_port_scan_timeout(port_scan_timeouts[(port_scan_timeout_index + 1) % port_scan_timeouts.len()]),
-                4 => settings.set_micro_macro_key(micro_macro_keys[(micro_macro_key_index + 1) % micro_macro_keys.len()]),
-                5 => settings.set_micro_macro_delay(micro_macro_delays[(micro_macro_delay_index + 1) % micro_macro_delays.len()]),
+                4 => settings.set_micro_macro_hotkey(micro_macro_hotkeys[(micro_macro_hotkey_index + 1) % micro_macro_hotkeys.len()]),
+                5 => settings.set_macro_hotkey(macro_hotkeys[(macro_hotkey_index + 1) % macro_hotkeys.len()]),
                 6 => settings.set_hide_help(!settings.hide_help),
                 7 => {
                     {
@@ -1083,10 +1174,10 @@ r#"| change setting: $[ent]$ | select: $[0-9]$ |
                     settings.ping_delay.to_string() + "ms "
                 } else if menu_options[i] == "port_scan_timeout" {
                     settings.port_scan_timeout.to_string() + "ms "
-                } else if menu_options[i] == "micro_macro_key" {
-                    settings.micro_macro_key.to_string() + " "
-                } else if menu_options[i] == "micro_macro_delay" {
-                    let delay = settings.micro_macro_delay as usize; let (display_delay, delay_unit) = if delay <= 1000 { (delay, "ms") } else if delay > 60000 { (delay / 60000, "m") } else { (delay / 1000, "s") }; format!("{}{} ", display_delay, delay_unit)
+                } else if menu_options[i] == "micro_macro_hotkey" {
+                    settings.micro_macro_hotkey.to_string() + " "
+                } else if menu_options[i] == "macro_hotkey" {
+                    settings.macro_hotkey.to_string() + " "
                 } else if menu_options[i] == "hide_help" {
                     if settings.hide_help { "1 ".to_string() } else { "0 ".to_string() }
                 } else if menu_options[i] == "show_config_files" {
@@ -1122,7 +1213,7 @@ r#"| change setting: $[ent]$ | select: $[0-9]$ |
 }
 
 fn settings_menu() {
-    let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_timeout", "micro_macro_key", "micro_macro_delay", "hide_help", "show_config_files", "add_custom", "clear_custom"];
+    let settings_menu_options = ["color", "dark_theme", "ping_delay", "port_scan_timeout", "micro_macro_hotkey", "macro_hotkey", "hide_help", "show_config_files", "add_custom", "clear_custom"];
     let mut settings_menu_selected = 0;
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
