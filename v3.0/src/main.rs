@@ -724,7 +724,7 @@ fn micro_macro() {
         let mut stdout = io::stdout();
         let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change status: $[ent]$ |");
         let help_more_string = format!(
-            "| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change status: $[{}]$ |",
+            "| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change status: $[Space]/[{}]$ |",
             settings.micro_macro_hotkey
         );
         let (width, _) = terminal::size().unwrap();
@@ -798,6 +798,8 @@ r#"| change setting: $[ent]$ | select: $[0-9]$ |
                         } else if menu_options[i] == "micro_macro_delay" {
                             let delay = settings.micro_macro_delay as usize;
                             let (display_delay, delay_unit) = if delay <= 1000 { (delay, "ms") } else if delay > 60000 { (delay / 60000, "m") } else { (delay / 1000, "s") }; format!("{}{} ", display_delay, delay_unit)
+                        } else if menu_options[i] == "micro_macro_hotkey" {
+                            settings.micro_macro_hotkey.to_string() + " "
                         } else {
                             " ".to_string()
                         },
@@ -825,12 +827,14 @@ r#"| change setting: $[ent]$ | select: $[0-9]$ |
             print!("{}", output);
             stdout.flush().unwrap();
         }
-        let micro_macro_settings_menu_options = ["micro_macro_key", "micro_macro_delay"];
+        let micro_macro_settings_menu_options = ["micro_macro_key", "micro_macro_delay", "micro_macro_hotkey"];
         let mut micro_macro_settings_menu_selected = 0;
         let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
         let mut micro_macro_key_index = micro_macro_keys.iter().position(|&c| c == settings.micro_macro_key ).unwrap_or(0);
         let micro_macro_delays = [5, 10, 25, 50, 75, 100, 200, 500, 1000, 5000, 10000, 30000, 60000, 120000, 300000, 600000];
         let mut micro_macro_delay_index = micro_macro_delays.iter().position(|&c| c == settings.micro_macro_delay ).unwrap_or(0);
+        let micro_macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"];
+        let mut micro_macro_hotkey_index = micro_macro_hotkeys.iter().position(|&c| c == settings.micro_macro_hotkey ).unwrap_or(0);
         let mut last_render_time = get_time();
         let (mut last_width, mut last_height) = terminal::size().unwrap();
         let mut needs_rendering = true;
@@ -843,6 +847,7 @@ r#"| change setting: $[ent]$ | select: $[0-9]$ |
                         match micro_macro_settings_menu_selected {
                             0 => { if micro_macro_key_index > 0 { settings.set_micro_macro_key(micro_macro_keys[micro_macro_key_index - 1]) } else { settings.set_micro_macro_key(micro_macro_keys[micro_macro_keys.len() - 1]) }; if micro_macro_key_index > 0 {micro_macro_key_index -= 1 } else { micro_macro_key_index = micro_macro_keys.len() - 1 } },
                             1 => { if micro_macro_delay_index > 0 { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delay_index - 1]) } else { settings.set_micro_macro_delay(micro_macro_delays[micro_macro_delays.len() - 1]) }; if micro_macro_delay_index > 0 { micro_macro_delay_index -= 1 } else { micro_macro_delay_index = micro_macro_delays.len() - 1 } },
+                            2 => { if micro_macro_hotkey_index > 0 { settings.set_micro_macro_hotkey(micro_macro_hotkeys[micro_macro_hotkey_index - 1]) } else { settings.set_micro_macro_hotkey(micro_macro_hotkeys[micro_macro_hotkeys.len() - 1]) }; if micro_macro_hotkey_index > 0 { micro_macro_hotkey_index -= 1 } else { micro_macro_hotkey_index = micro_macro_hotkeys.len() - 1 } },
                             _ => {}
                         }
                     },
@@ -851,6 +856,7 @@ r#"| change setting: $[ent]$ | select: $[0-9]$ |
                         match micro_macro_settings_menu_selected {
                             0 => { settings.set_micro_macro_key(micro_macro_keys[(micro_macro_key_index + 1) % micro_macro_keys.len()]); micro_macro_key_index = (micro_macro_key_index + 1) % micro_macro_keys.len() },
                             1 => { settings.set_micro_macro_delay(micro_macro_delays[(micro_macro_delay_index + 1) % micro_macro_delays.len()]); micro_macro_delay_index = (micro_macro_delay_index + 1) % micro_macro_delays.len() },
+                            2 => { settings.set_micro_macro_hotkey(micro_macro_hotkeys[(micro_macro_hotkey_index + 1) % micro_macro_hotkeys.len()]); micro_macro_hotkey_index = (micro_macro_hotkey_index + 1) % micro_macro_hotkeys.len() },
                             _ => {}
                         }
                     },
@@ -861,6 +867,7 @@ r#"| change setting: $[ent]$ | select: $[0-9]$ |
                         match micro_macro_settings_menu_selected {
                             0 => { settings.set_micro_macro_key(micro_macro_keys[(micro_macro_key_index + 1) % micro_macro_keys.len()]); micro_macro_key_index += 1 },
                             1 => { settings.set_micro_macro_delay(micro_macro_delays[(micro_macro_delay_index + 1) % micro_macro_delays.len()]); micro_macro_delay_index += 1 },
+                            2 => { settings.set_micro_macro_hotkey(micro_macro_hotkeys[(micro_macro_hotkey_index + 1) % micro_macro_hotkeys.len()]); micro_macro_hotkey_index = (micro_macro_hotkey_index + 1) % micro_macro_hotkeys.len() },
                             _ => {}
                         }
                     },
@@ -919,8 +926,9 @@ r#"| change setting: $[ent]$ | select: $[0-9]$ |
             match pressed_key {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => { STOP_HANDLE.store(true, Ordering::Relaxed); micro_macro_settings() },
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => { STOP_HANDLE.store(true, Ordering::Relaxed); return },
-                KeyCode::Enter => { let mut active = MICRO_MACRO_ACTIVE.lock().unwrap(); *active = !*active }
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::Enter => { let mut active = MICRO_MACRO_ACTIVE.lock().unwrap(); *active = !*active },
+                KeyCode::Char(c) if c == ' ' => { let mut active = MICRO_MACRO_ACTIVE.lock().unwrap(); *active = !*active },
                 _ => {}
             }
         }
