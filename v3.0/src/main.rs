@@ -76,6 +76,7 @@ struct Settings {
     micro_macro_key: String,
     micro_macro_delay: u64,
     macro_hotkey: String,
+    macro_restart_when_pausing: bool,
     hide_help: bool,
     show_config_files: bool,
     custom_options: Vec<String>,
@@ -91,6 +92,7 @@ impl Settings {
             micro_macro_key: "F15".to_string(),
             micro_macro_delay: 30000,
             macro_hotkey: "None".to_string(),
+            macro_restart_when_pausing: false,
             hide_help: false,
             show_config_files: false,
             custom_options: Vec::new(),
@@ -167,6 +169,10 @@ impl Settings {
     }
     fn set_macro_hotkey(&mut self, new_hotkey: &str) {
         self.macro_hotkey = new_hotkey.to_string();
+        self.save();
+    }
+    fn set_macro_restart_when_pausing(&mut self, new_value: bool) {
+        self.macro_restart_when_pausing = new_value;
         self.save();
     }
     fn set_hide_help(&mut self, new_value: bool) {
@@ -1476,7 +1482,13 @@ fn macro_tool() {
                         i,
                         "›",
                         menu_options[i],
-                        if menu_options[i] == "macro_hotkey" {
+                        if menu_options[i] == "restart_when_pausing" {
+                            if settings.macro_restart_when_pausing {
+                                "1 ".to_string()
+                            } else {
+                                "0 ".to_string()
+                            }
+                        } else if menu_options[i] == "macro_hotkey" {
                             settings.macro_hotkey.to_string() + " "
                         } else {
                             " ".to_string()
@@ -1509,7 +1521,7 @@ fn macro_tool() {
             print!("{}", output);
             stdout.flush().unwrap();
         }
-        let macro_settings_menu_options = ["macro_hotkey"];
+        let macro_settings_menu_options = ["restart_when_pausing", "macro_hotkey"];
         let mut macro_settings_menu_selected = 0;
         let macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"];
         let mut macro_hotkey_index = macro_hotkeys
@@ -1531,7 +1543,9 @@ fn macro_tool() {
                         }
                     }
                     KeyCode::Left => match macro_settings_menu_selected {
-                        0 => {
+                        0 => settings
+                            .set_macro_restart_when_pausing(!settings.macro_restart_when_pausing),
+                        1 => {
                             if macro_hotkey_index > 0 {
                                 settings.set_macro_hotkey(macro_hotkeys[macro_hotkey_index - 1])
                             } else {
@@ -1553,7 +1567,9 @@ fn macro_tool() {
                         }
                     }
                     KeyCode::Right | KeyCode::Enter => match macro_settings_menu_selected {
-                        0 => {
+                        0 => settings
+                            .set_macro_restart_when_pausing(!settings.macro_restart_when_pausing),
+                        1 => {
                             settings.set_macro_hotkey(
                                 macro_hotkeys[(macro_hotkey_index + 1) % macro_hotkeys.len()],
                             );
@@ -1680,6 +1696,7 @@ fn macro_tool() {
                 ("control", Key::Control),
                 ("alt", Key::Alt),
                 ("space", Key::Space),
+                ("ent", Key::Return),
                 ("enter", Key::Return),
                 ("return", Key::Return),
                 ("escape", Key::Escape),
@@ -1750,8 +1767,18 @@ fn macro_tool() {
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => macro_tool_settings(),
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
-                    KeyCode::Enter => macro_active = !macro_active,
-                    KeyCode::Char(c) if c == ' ' => macro_active = !macro_active,
+                    KeyCode::Enter => {
+                        macro_active = !macro_active;
+                        if settings.macro_restart_when_pausing {
+                            current_line = 0
+                        }
+                    }
+                    KeyCode::Char(c) if c == ' ' => {
+                        macro_active = !macro_active;
+                        if settings.macro_restart_when_pausing {
+                            current_line = 0
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -1760,6 +1787,9 @@ fn macro_tool() {
                 if let Some(hotkey_enum) = string_to_keybdkey(&hotkey) {
                     if pressed_key == hotkey_enum {
                         macro_active = !macro_active;
+                        if settings.macro_restart_when_pausing {
+                            current_line = 0
+                        }
                     }
                 }
             }
