@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 crossterm = "0.28.1"
+crossbeam = "0.8"
 rand = "0.8.5"
 toml = "0.8.20"
 serde = { version = "1.0", features = ["derive"] }
@@ -17,4 +18,4 @@ resolution = "0.2.0"
 sysinfo = "0.33.1"
 wmi = "0.14"
 enigo = "0.3.0"
-rdev = "0.5.3"
+inputbot = "0.5.1"
