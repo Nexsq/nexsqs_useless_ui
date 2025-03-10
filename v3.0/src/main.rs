@@ -526,8 +526,10 @@ fn ping_tool() {
             help_more_string.clone(),
         ));
         output.push_str(&format!("{}", cursor::MoveUp(1)));
-        clear();
+        execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
         print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
         stdout.flush().unwrap();
     }
     fn add_ping(pings: &mut Vec<String>, ping: String, help_more_string_lines: u16) {
@@ -689,8 +691,10 @@ fn port_scan() {
             help_more_string.clone(),
         ));
         output.push_str(&format!("{}", cursor::MoveUp(2)));
-        clear();
+        execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
         print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
         stdout.flush().unwrap();
     }
     fn add_port_scan(port_scan: String, help_more_string_lines: u16) {
@@ -1013,8 +1017,10 @@ fn micro_macro() {
             cursor::MoveToColumn(width)
         ));
         output.push_str(&render_bottom(5, help_string, help_more_string));
-        clear();
+        execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
         print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
         stdout.flush().unwrap();
     }
     fn micro_macro_settings() {
@@ -1085,8 +1091,10 @@ fn micro_macro() {
                 help_string,
                 help_more_string,
             ));
-            clear();
+            execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
             print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
         let micro_macro_settings_menu_options = [
@@ -1455,8 +1463,10 @@ fn macro_tool() {
             help_string,
             help_more_string,
         ));
-        clear();
+        execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
         print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
         stdout.flush().unwrap();
     }
     fn macro_tool_settings() {
@@ -1517,8 +1527,10 @@ fn macro_tool() {
                 help_string,
                 help_more_string,
             ));
-            clear();
+            execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
             print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
         let macro_settings_menu_options = ["restart_when_pausing", "macro_hotkey"];
@@ -1647,8 +1659,10 @@ fn macro_tool() {
                 cursor::MoveToColumn(width)
             ));
             output.push_str(&render_bottom(3, help_string, help_more_string));
-            clear();
+            execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
             print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
         fn add_macro_action(
@@ -2199,8 +2213,10 @@ fn tetris() {
         let mut output = String::new();
         output.push_str(&render_top("tetris", Some("tetris_settings"), false));
         output.push_str(&render_bottom(0, help_string, help_more_string));
-        clear();
+        execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
         print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
         stdout.flush().unwrap();
     }
     fn tetris_settings() {
@@ -2249,8 +2265,10 @@ fn tetris() {
                 }
             }
             output.push_str(&render_bottom(2, help_string, help_more_string));
-            clear();
+            execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
             print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
         let tetris_settings_menu_options = ["test_setting1", "test_setting2"];
@@ -2349,8 +2367,10 @@ fn game_of_life() {
             false,
         ));
         output.push_str(&render_bottom(0, help_string, help_more_string));
-        clear();
+        execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
         print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
         stdout.flush().unwrap();
     }
     fn game_of_life_settings() {
@@ -2403,8 +2423,10 @@ fn game_of_life() {
                 }
             }
             output.push_str(&render_bottom(2, help_string, help_more_string));
-            clear();
+            execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    clear();
             print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
         let game_of_life_settings_menu_options = ["test_setting1", "test_setting2"];
@@ -2759,8 +2781,10 @@ fn sys_fetch() {
         help_string,
         help_more_string,
     ));
+    execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
     clear();
     print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
     stdout.flush().unwrap();
     loop {
         if let Some(pressed_key) = get_key() {
@@ -3011,8 +3035,11 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
         help_string,
         help_more_string,
     ));
+    execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+    execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
     clear();
     print!("{}", output);
+    execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
     stdout.flush().unwrap();
 }
 
