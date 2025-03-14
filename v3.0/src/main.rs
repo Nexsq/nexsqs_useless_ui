@@ -1375,7 +1375,7 @@ fn macro_tool() {
             "| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | select: $[ent]$ |",
         );
         let help_more_string = String::from(
-            r#"| change setting: $[ent]$ | select: $[0-9]$ | edit: $[space]$ | delete: $[del]$ |
+            r#"| change setting: $[ent]$ | select: $[0-9]$ | edit: $[space]$ | delete: $[del]/[backspace]$ |
 | quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
         );
         let (width, _) = terminal::size().unwrap();
@@ -1702,6 +1702,9 @@ fn macro_tool() {
         }
         fn get_key_from_str(key_str: &str) -> Option<Key> {
             let key_map: HashMap<&str, Key> = [
+                ("meta", Key::Meta),
+                ("start", Key::Meta),
+                ("win", Key::Meta),
                 ("shift", Key::Shift),
                 ("ctrl", Key::Control),
                 ("control", Key::Control),
@@ -1849,7 +1852,7 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_click" => {
+                            Some(ref cmd) if cmd == "mouse_click" || cmd == "mouse" => {
                                 if let Some(button_str) = command_parts.get(1) {
                                     match button_str.to_lowercase().as_str() {
                                         "left" | "LMB" => {
@@ -1954,7 +1957,7 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_move" => {
+                            Some(ref cmd) if cmd == "mouse_move" || cmd == "move" || cmd == "move_to" => {
                                 if let Some(x_str) = command_parts.get(1) {
                                     if let Some(y_str) = command_parts.get(2) {
                                         if let Ok(x) = x_str.parse::<i32>() {
@@ -1988,7 +1991,7 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "press" => {
+                            Some(ref cmd) if cmd == "press" || cmd == "hold" => {
                                 if let Some(key_str) = command_parts.get(1) {
                                     if let Some(key) = get_key_from_str(key_str) {
                                         enigo.key(key, Press).ok();
@@ -2121,7 +2124,7 @@ fn macro_tool() {
                     return;
                 }
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
-                KeyCode::Delete => match macro_menu_selected {
+                KeyCode::Delete | KeyCode::Backspace => match macro_menu_selected {
                     0 => {}
                     _ => {
                         let selected_macro = &macro_menu_options[macro_menu_selected];
