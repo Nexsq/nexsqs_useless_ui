@@ -77,6 +77,7 @@ struct Settings {
     micro_macro_delay: u64,
     macro_hotkey: String,
     macro_restart_when_pausing: bool,
+    macro_repeat_once: bool,
     hide_help: bool,
     show_config_files: bool,
     custom_options: Vec<String>,
@@ -93,6 +94,7 @@ impl Settings {
             micro_macro_delay: 30000,
             macro_hotkey: "None".to_string(),
             macro_restart_when_pausing: false,
+            macro_repeat_once: false,
             hide_help: false,
             show_config_files: false,
             custom_options: Vec::new(),
@@ -173,6 +175,10 @@ impl Settings {
     }
     fn set_macro_restart_when_pausing(&mut self, new_value: bool) {
         self.macro_restart_when_pausing = new_value;
+        self.save();
+    }
+    fn set_macro_repeat_once(&mut self, new_value: bool) {
+        self.macro_repeat_once = new_value;
         self.save();
     }
     fn set_hide_help(&mut self, new_value: bool) {
@@ -1488,6 +1494,12 @@ fn macro_tool() {
                             } else {
                                 "0 ".to_string()
                             }
+                        } else if menu_options[i] == "repeat_once" {
+                            if settings.macro_repeat_once {
+                                "1 ".to_string()
+                            } else {
+                                "0 ".to_string()
+                            }
                         } else if menu_options[i] == "macro_hotkey" {
                             settings.macro_hotkey.to_string() + " "
                         } else {
@@ -1521,7 +1533,7 @@ fn macro_tool() {
             print!("{}", output);
             stdout.flush().unwrap();
         }
-        let macro_settings_menu_options = ["restart_when_pausing", "macro_hotkey"];
+        let macro_settings_menu_options = ["restart_when_pausing", "macro_hotkey", "repeat_once"];
         let mut macro_settings_menu_selected = 0;
         let macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"];
         let mut macro_hotkey_index = macro_hotkeys
@@ -1557,6 +1569,7 @@ fn macro_tool() {
                                 macro_hotkey_index = macro_hotkeys.len() - 1
                             }
                         }
+                        2 => settings.set_macro_repeat_once(!settings.macro_repeat_once),
                         _ => {}
                     },
                     KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
@@ -1575,6 +1588,7 @@ fn macro_tool() {
                             );
                             macro_hotkey_index = (macro_hotkey_index + 1) % macro_hotkeys.len()
                         }
+                        2 => settings.set_macro_repeat_once(!settings.macro_repeat_once),
                         _ => {}
                     },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
@@ -1685,14 +1699,25 @@ fn macro_tool() {
             for (i, macro_action) in macro_actions.iter().enumerate() {
                 execute!(stdout, cursor::MoveTo(2, start_y + i as u16)).unwrap();
                 if macro_action.starts_with('#') {
-                    let mut output = String::new();
-                    output.push_str(&format!(
-                        "{}{}{}",
-                        SetForegroundColor(get_color("main")),
-                        macro_action,
-                        SetForegroundColor(get_color("theme")),
-                    ));
-                    print!("{}", output);
+                    print!(
+                        "{}",
+                        &format!(
+                            "{}{}{}",
+                            SetForegroundColor(get_color("main")),
+                            macro_action,
+                            SetForegroundColor(get_color("theme")),
+                        )
+                    );
+                } else if macro_action.starts_with("Unknown command:") {
+                    print!(
+                        "{}",
+                        &format!(
+                            "{}{}{}",
+                            SetForegroundColor(Color::DarkGrey),
+                            macro_action,
+                            SetForegroundColor(get_color("theme")),
+                        )
+                    );
                 } else {
                     print!("{}", macro_action);
                 }
@@ -1832,12 +1857,15 @@ fn macro_tool() {
                         let command_parts: Vec<&str> = trimmed_line.split_whitespace().collect();
                         match command_parts.get(0).map(|&s| s.to_lowercase()) {
                             Some(ref cmd) if cmd == "#" => {
-                                if let Some(comment_str) = command_parts.get(1) {
-                                    add_macro_action(
-                                        &mut macro_actions,
-                                        format!("# {}", comment_str),
-                                        help_more_string_lines,
-                                    )
+                                if command_parts.len() > 1 {
+                                    if let Some(mut text) = trimmed_line.strip_prefix("#") {
+                                        text = text.trim();
+                                        add_macro_action(
+                                            &mut macro_actions,
+                                            format!("# {}", text),
+                                            help_more_string_lines,
+                                        );
+                                    }
                                 }
                             }
                             Some(ref cmd) if cmd == "delay" => {
@@ -2031,13 +2059,15 @@ fn macro_tool() {
                             }
                             Some(ref cmd) if cmd == "string" => {
                                 if command_parts.len() > 1 {
-                                    let text = command_parts[1..].join(" ");
-                                    enigo.text(&text).ok();
-                                    add_macro_action(
-                                        &mut macro_actions,
-                                        format!("Typed: {}", text),
-                                        help_more_string_lines,
-                                    );
+                                    if let Some(mut text) = trimmed_line.strip_prefix("string") {
+                                        text = text.trim();
+                                        enigo.text(&text).ok();
+                                        add_macro_action(
+                                            &mut macro_actions,
+                                            format!("Typed: {}", text),
+                                            help_more_string_lines,
+                                        );
+                                    }
                                 }
                             }
                             _ => {
@@ -2054,7 +2084,10 @@ fn macro_tool() {
                     if current_line < lines.len() {
                         current_line += 1
                     } else {
-                        current_line = 0
+                        current_line = 0;
+                        if settings.macro_repeat_once {
+                            macro_active = false;
+                        }
                     }
                 }
             }
@@ -2633,8 +2666,10 @@ fn sys_fetch() {
         let mut total_size = 0u64;
         for disk in results {
             if let (Some(free_space), Some(size)) = (disk.free_space, disk.size) {
-                total_used_space += size - free_space;
-                total_size += size;
+                if free_space < size {
+                    total_used_space += size - free_space;
+                    total_size += size;
+                }
             }
         }
         if total_size == 0 {
