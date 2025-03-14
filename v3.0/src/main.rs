@@ -1957,7 +1957,9 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_move" || cmd == "move" || cmd == "move_to" => {
+                            Some(ref cmd)
+                                if cmd == "mouse_move" || cmd == "move" || cmd == "move_to" =>
+                            {
                                 if let Some(x_str) = command_parts.get(1) {
                                     if let Some(y_str) = command_parts.get(2) {
                                         if let Ok(x) = x_str.parse::<i32>() {
