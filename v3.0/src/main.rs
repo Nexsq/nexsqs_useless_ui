@@ -1684,7 +1684,18 @@ fn macro_tool() {
             }
             for (i, macro_action) in macro_actions.iter().enumerate() {
                 execute!(stdout, cursor::MoveTo(2, start_y + i as u16)).unwrap();
-                print!("{}", macro_action);
+                if macro_action.starts_with('#') {
+                    let mut output = String::new();
+                    output.push_str(&format!(
+                        "{}{}{}",
+                        SetForegroundColor(get_color("main")),
+                        macro_action,
+                        SetForegroundColor(get_color("theme")),
+                    ));
+                    print!("{}", output);
+                } else {
+                    print!("{}", macro_action);
+                }
             }
             stdout.flush().unwrap();
             macro_actions.len()
@@ -1811,12 +1822,21 @@ fn macro_tool() {
                     if current_line < lines.len() {
                         let line = &lines[current_line];
                         let trimmed_line = line.trim();
-                        if trimmed_line.is_empty() || trimmed_line.starts_with("#") {
+                        if trimmed_line.is_empty() {
                             current_line += 1;
                             continue;
                         }
                         let command_parts: Vec<&str> = trimmed_line.split_whitespace().collect();
                         match command_parts.get(0).map(|&s| s.to_lowercase()) {
+                            Some(ref cmd) if cmd == "#" => {
+                                if let Some(comment_str) = command_parts.get(1) {
+                                    add_macro_action(
+                                        &mut macro_actions,
+                                        format!("# {}", comment_str),
+                                        help_more_string_lines,
+                                    )
+                                }
+                            }
                             Some(ref cmd) if cmd == "delay" => {
                                 if let Some(delay_str) = command_parts.get(1) {
                                     if let Ok(delay_ms) = delay_str.parse::<u64>() {
@@ -2118,7 +2138,7 @@ fn macro_tool() {
                             }
                         }
                     }
-                }
+                },
                 KeyCode::Enter => match macro_menu_selected {
                     0 => {
                         execute!(stdout, cursor::MoveUp(1)).unwrap();
@@ -2147,7 +2167,7 @@ fn macro_tool() {
                         macro_tool()
                     }
                     _ => macro_tool_macro(&macro_menu_options[macro_menu_selected], &macros_dir),
-                }
+                },
                 KeyCode::Char(c) if c == ' ' => match macro_menu_selected {
                     0 => {}
                     _ => {
@@ -2160,7 +2180,7 @@ fn macro_tool() {
                             }
                         }
                     }
-                }
+                },
                 KeyCode::Char(c) if c.is_digit(10) => {
                     let num = c.to_digit(10).unwrap() as usize;
                     if num < macro_menu_options.len() {
