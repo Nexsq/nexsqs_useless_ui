@@ -1985,6 +1985,18 @@ fn macro_tool() {
                                     }
                                 }
                             }
+                            Some(ref cmd) if cmd == "mouse_scroll" || cmd == "scroll" => {
+                                if let Some(length_str) = command_parts.get(1) {
+                                    if let Ok(length) = length_str.parse::<i32>() {
+                                        enigo.scroll(length, enigo::Axis::Vertical).ok();
+                                        add_macro_action(
+                                            &mut macro_actions,
+                                            format!("Scrolled by: {}", length),
+                                            help_more_string_lines,
+                                        );
+                                    }
+                                }
+                            }
                             Some(ref cmd)
                                 if cmd == "mouse_move" || cmd == "move" || cmd == "move_to" =>
                             {
