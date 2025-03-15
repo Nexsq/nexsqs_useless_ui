@@ -1140,7 +1140,9 @@ fn micro_macro() {
             .iter()
             .position(|&c| c == settings.micro_macro_delay)
             .unwrap_or(0);
-        let micro_macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse"];
+        let micro_macro_hotkeys = [
+            "None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse",
+        ];
         let mut micro_macro_hotkey_index = micro_macro_hotkeys
             .iter()
             .position(|&c| c == settings.micro_macro_hotkey)
@@ -1559,7 +1561,9 @@ fn macro_tool() {
         }
         let macro_settings_menu_options = ["restart_when_pausing", "macro_hotkey", "repeat_once"];
         let mut macro_settings_menu_selected = 0;
-        let macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse"];
+        let macro_hotkeys = [
+            "None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse",
+        ];
         let mut macro_hotkey_index = macro_hotkeys
             .iter()
             .position(|&c| c == settings.macro_hotkey)
@@ -2902,12 +2906,16 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
         .iter()
         .position(|&c| c == settings.port_scan_timeout)
         .unwrap_or(0);
-    let micro_macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse"];
+    let micro_macro_hotkeys = [
+        "None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse",
+    ];
     let micro_macro_hotkey_index = micro_macro_hotkeys
         .iter()
         .position(|&c| c == settings.micro_macro_hotkey)
         .unwrap_or(0);
-    let macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse"];
+    let macro_hotkeys = [
+        "None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse",
+    ];
     let macro_hotkey_index = macro_hotkeys
         .iter()
         .position(|&c| c == settings.macro_hotkey)
