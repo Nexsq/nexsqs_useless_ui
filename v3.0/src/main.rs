@@ -540,7 +540,7 @@ fn ping_tool() {
     let help_string =
         String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change ip: $[ent]$ |");
     let help_more_string =
-        String::from(r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#);
+        String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#);
     fn render_ping_tool(help_string: &String, help_more_string: &String, ip: &String) {
         let mut stdout = io::stdout();
         let mut output = String::new();
@@ -653,7 +653,8 @@ fn ping_tool() {
             match pressed_key {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                KeyCode::Esc => process::exit(0),
                 KeyCode::Enter => {
                     ping_tool();
                     return;
@@ -702,7 +703,7 @@ fn port_scan() {
     let help_string =
         String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change ip: $[ent]$ |");
     let help_more_string =
-        String::from(r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#);
+        String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | change ip: $[space]$ |"#);
     fn render_port_scan(help_string: &String, help_more_string: &String, ip: &String, port: i32) {
         let mut stdout = io::stdout();
         let mut output = String::new();
@@ -900,7 +901,8 @@ fn port_scan() {
                     clear_port_num();
                     return;
                 }
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                KeyCode::Esc => process::exit(0),
                 KeyCode::Enter => {
                     if let Some(h) = handle.take() {
                         h.join().unwrap();
@@ -989,7 +991,7 @@ fn micro_macro() {
         let help_string =
             String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change status: $[ent]$ |");
         let help_more_string = format!(
-            r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change status: $[Space]/[{}]$ |"#,
+            r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | change status: $[Space]/[{}]$ |"#,
             settings.micro_macro_hotkey
         );
         let (width, _) = terminal::size().unwrap();
@@ -1056,7 +1058,7 @@ fn micro_macro() {
             let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
             let help_more_string = String::from(
                 r#"| change setting: $[ent]$ | select: $[0-9]$ |
-| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
+| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
             );
             let (width, _) = terminal::size().unwrap();
             let mut output = String::new();
@@ -1283,7 +1285,8 @@ fn micro_macro() {
                     },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                    KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                    KeyCode::Esc => process::exit(0),
                     KeyCode::Char(c) if c.is_digit(10) => {
                         let num = c.to_digit(10).unwrap() as usize;
                         if num < micro_macro_settings_menu_options.len() {
@@ -1325,7 +1328,8 @@ fn micro_macro() {
             match pressed_key {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => micro_macro_settings(),
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                KeyCode::Esc => process::exit(0),
                 KeyCode::Enter => micro_macro_active = !micro_macro_active,
                 KeyCode::Char(c) if c == ' ' => micro_macro_active = !micro_macro_active,
                 _ => {}
@@ -1408,7 +1412,7 @@ fn macro_tool() {
         );
         let help_more_string = String::from(
             r#"| change setting: $[ent]$ | select: $[0-9]$ | edit: $[space]$ | delete: $[del]/[backspace]$ |
-| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
+| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
         );
         let (width, _) = terminal::size().unwrap();
         let mut output = String::new();
@@ -1491,19 +1495,23 @@ fn macro_tool() {
         print!("{}", output);
         stdout.flush().unwrap();
     }
-    fn macro_tool_settings() {
+    fn macro_tool_settings(macro_path: &String) {
         let mut settings = Settings::load();
-        fn render_macro_tool_settings(menu_selected: usize, menu_options: &[&str]) {
+        fn render_macro_tool_settings(
+            menu_selected: usize,
+            menu_options: &[&str],
+            macro_path: &String,
+        ) {
             let settings = Settings::load();
             let mut stdout = io::stdout();
             let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
             let help_more_string = String::from(
                 r#"| change setting: $[ent]$ | select: $[0-9]$ |
-| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
+| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
             );
             let (width, _) = terminal::size().unwrap();
             let mut output = String::new();
-            output.push_str(&render_top("macro_settings", Some("macro"), true));
+            output.push_str(&render_top("macro_settings", Some(&macro_path), true));
             for i in 0..menu_options.len() {
                 if i == menu_selected {
                     output.push_str("│");
@@ -1621,7 +1629,8 @@ fn macro_tool() {
                     },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                    KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                    KeyCode::Esc => process::exit(0),
                     KeyCode::Char(c) if c.is_digit(10) => {
                         let num = c.to_digit(10).unwrap() as usize;
                         if num < macro_settings_menu_options.len() {
@@ -1641,6 +1650,7 @@ fn macro_tool() {
                 render_macro_tool_settings(
                     macro_settings_menu_selected,
                     &macro_settings_menu_options,
+                    macro_path,
                 );
                 last_render_time = current_time;
                 last_width = width;
@@ -1655,7 +1665,7 @@ fn macro_tool() {
             let mut stdout = io::stdout();
             let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | change status: $[ent]$ | back: $[←]/[→]$ |");
             let help_more_string = format!(
-                r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ | change status: $[Space]/[{}]$ |"#,
+                r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | change status: $[Space]/[{}]$ |"#,
                 settings.macro_hotkey
             );
             let (width, _) = terminal::size().unwrap();
@@ -1831,9 +1841,15 @@ fn macro_tool() {
                 needs_rendering = true;
                 match pressed_key {
                     KeyCode::Left | KeyCode::Right => return,
-                    KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => macro_tool_settings(),
-                    KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                    KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
+                        macro_tool_settings(macro_path)
+                    }
+                    KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => {
+                        main();
+                        return;
+                    }
+                    KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                    KeyCode::Esc => process::exit(0),
                     KeyCode::Enter => {
                         macro_active = !macro_active;
                     }
@@ -2184,12 +2200,12 @@ fn macro_tool() {
                         macro_menu_selected = 0
                     }
                 }
-                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => macro_tool_settings(),
-                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => {
-                    main();
-                    return;
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
+                    macro_tool_settings(&"macro".to_string())
                 }
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
+                KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                KeyCode::Esc => process::exit(0),
                 KeyCode::Delete | KeyCode::Backspace => match macro_menu_selected {
                     0 => {}
                     _ => {
@@ -2290,7 +2306,7 @@ fn tetris() {
     fn render_tetris() {
         let mut stdout = io::stdout();
         let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
-        let help_more_string = String::from(r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
+        let help_more_string = String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
         let mut output = String::new();
         output.push_str(&render_top("tetris", Some("tetris_settings"), false));
         output.push_str(&render_bottom(0, help_string, help_more_string));
@@ -2304,7 +2320,7 @@ fn tetris() {
             let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
             let help_more_string = String::from(
                 r#"| change setting: $[ent]$ | select: $[0-9]$ |
-| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
+| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
             );
             let (width, _) = terminal::size().unwrap();
             let mut output = String::new();
@@ -2375,7 +2391,8 @@ fn tetris() {
                     KeyCode::Right => {}
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                    KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                    KeyCode::Esc => process::exit(0),
                     KeyCode::Char(c) if c.is_digit(10) => {
                         let num = c.to_digit(10).unwrap() as usize;
                         if num < tetris_settings_menu_options.len() {
@@ -2412,7 +2429,8 @@ fn tetris() {
             match pressed_key {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => tetris_settings(),
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                KeyCode::Esc => process::exit(0),
                 _ => {}
             }
         }
@@ -2436,7 +2454,7 @@ fn game_of_life() {
     fn render_game_of_life() {
         let mut stdout = io::stdout();
         let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
-        let help_more_string = String::from(r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
+        let help_more_string = String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
         let mut output = String::new();
         output.push_str(&render_top(
             "game_of_life",
@@ -2454,7 +2472,7 @@ fn game_of_life() {
             let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
             let help_more_string = String::from(
                 r#"| change setting: $[ent]$ | select: $[0-9]$ |
-| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
+| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
             );
             let (width, _) = terminal::size().unwrap();
             let mut output = String::new();
@@ -2532,7 +2550,8 @@ fn game_of_life() {
                     KeyCode::Right => {}
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                    KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                    KeyCode::Esc => process::exit(0),
                     KeyCode::Char(c) if c.is_digit(10) => {
                         let num = c.to_digit(10).unwrap() as usize;
                         if num < game_of_life_settings_menu_options.len() {
@@ -2569,7 +2588,8 @@ fn game_of_life() {
             match pressed_key {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => game_of_life_settings(),
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                KeyCode::Esc => process::exit(0),
                 _ => {}
             }
         }
@@ -2592,7 +2612,7 @@ fn game_of_life() {
 fn sys_fetch() {
     let mut stdout = io::stdout();
     let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
-    let help_more_string = String::from(r#"| quit: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
+    let help_more_string = String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
     let user_name = whoami::username();
     fn get_machine_name() -> String {
         {
@@ -2868,7 +2888,8 @@ fn sys_fetch() {
                     return;
                 }
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => settings_menu(),
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                KeyCode::Esc => process::exit(0),
                 _ => {}
             }
         }
@@ -3041,7 +3062,7 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
     );
     let help_more_string = String::from(
         r#"| change setting: $[ent]$ | select: $[0-9]$ |
-| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
+| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
     );
     let mut stdout = io::stdout();
     let (width, _) = terminal::size().unwrap();
@@ -3161,7 +3182,8 @@ fn settings_menu() {
                     main();
                     return;
                 }
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                KeyCode::Esc => process::exit(0),
                 KeyCode::Char(c) if c.is_digit(10) => {
                     let num = c.to_digit(10).unwrap() as usize;
                     if num < settings_menu_options.len() {
@@ -3219,7 +3241,7 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
     );
     let help_more_string = String::from(
         r#"| select: $[0-9]$ |
-| quit: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[←]/[↓]/[→]$ |"#,
+| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[←]/[↓]/[→]$ |"#,
     );
     let mut stdout = io::stdout();
     let (width, _) = terminal::size().unwrap();
@@ -3329,7 +3351,7 @@ fn main() {
                 }
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => sys_fetch(),
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
+                KeyCode::Esc => process::exit(0),
                 KeyCode::Enter => run_menu_selected(
                     menu_selected,
                     &menu_options
