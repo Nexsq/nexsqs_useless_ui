@@ -1836,17 +1836,9 @@ fn macro_tool() {
                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => process::exit(0),
                     KeyCode::Enter => {
                         macro_active = !macro_active;
-                        current_delay = 0;
-                        if settings.macro_restart_when_pausing {
-                            current_line = 0
-                        }
                     }
                     KeyCode::Char(c) if c == ' ' => {
                         macro_active = !macro_active;
-                        current_delay = 0;
-                        if settings.macro_restart_when_pausing {
-                            current_line = 0
-                        }
                     }
                     _ => {}
                 }
@@ -1862,6 +1854,10 @@ fn macro_tool() {
                 last_macro_active = macro_active;
                 render_macro_tool_macro(macro_path, macro_active);
                 print_macro_actions(&mut macro_actions);
+                current_delay = 0;
+                if settings.macro_restart_when_pausing {
+                    current_line = 0
+                }
             }
             if macro_active {
                 if passed_delay.elapsed() >= Duration::from_millis(current_delay) {
