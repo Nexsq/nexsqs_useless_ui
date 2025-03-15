@@ -1,0 +1,23 @@
+# add comments using # symbol
+delay 2500
+
+# paste text:
+press ctrl
+click v
+release ctrl
+
+# use string to print text
+string text was pasted
+
+delay 5000
+
+# do things with mouse
+mouse_press left
+# absolute coordinates (not relative)
+mouse_move 1000 500
+mouse_release left
+mouse_click right
+
+delay 2500
+
+# the macro will loop
