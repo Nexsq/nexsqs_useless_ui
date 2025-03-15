@@ -11,8 +11,8 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Mouse, Settings as EnigoSettings,
 };
-use inputbot::KeybdKey;
 use inputbot::KeybdKey::*;
+use inputbot::{KeybdKey, MouseButton};
 use rand::Rng;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -214,35 +214,60 @@ fn get_key() -> Option<KeyCode> {
     None
 }
 
-fn background_get_key(prev_state: &mut HashMap<KeybdKey, bool>) -> Option<KeybdKey> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum InputKey {
+    Keyboard(KeybdKey),
+    Mouse(MouseButton),
+}
+
+fn background_get_key(prev_state: &mut HashMap<InputKey, bool>) -> Option<InputKey> {
     let keys = vec![
         F1Key, F2Key, F3Key, F4Key, F5Key, F6Key, F7Key, F8Key, F9Key, F10Key, F11Key, F12Key,
     ];
+    let mouse_buttons = vec![MouseButton::X1Button, MouseButton::X2Button];
     for &key in &keys {
         let is_pressed = key.is_pressed();
-        let was_pressed = prev_state.get(&key).copied().unwrap_or(false);
+        let was_pressed = prev_state
+            .get(&InputKey::Keyboard(key))
+            .copied()
+            .unwrap_or(false);
         if is_pressed && !was_pressed {
-            prev_state.insert(key, true);
-            return Some(key);
+            prev_state.insert(InputKey::Keyboard(key), true);
+            return Some(InputKey::Keyboard(key));
         }
-        prev_state.insert(key, is_pressed);
+        prev_state.insert(InputKey::Keyboard(key), is_pressed);
+    }
+    for &button in &mouse_buttons {
+        let is_pressed = button.is_pressed();
+        let was_pressed = prev_state
+            .get(&InputKey::Mouse(button))
+            .copied()
+            .unwrap_or(false);
+        if is_pressed && !was_pressed {
+            prev_state.insert(InputKey::Mouse(button), true);
+            return Some(InputKey::Mouse(button));
+        }
+        prev_state.insert(InputKey::Mouse(button), is_pressed);
     }
     None
 }
-fn string_to_keybdkey(key: &str) -> Option<KeybdKey> {
+
+fn string_to_key(key: &str) -> Option<InputKey> {
     match key {
-        "F1Key" => Some(KeybdKey::F1Key),
-        "F2Key" => Some(KeybdKey::F2Key),
-        "F3Key" => Some(KeybdKey::F3Key),
-        "F4Key" => Some(KeybdKey::F4Key),
-        "F5Key" => Some(KeybdKey::F5Key),
-        "F6Key" => Some(KeybdKey::F6Key),
-        "F7Key" => Some(KeybdKey::F7Key),
-        "F8Key" => Some(KeybdKey::F8Key),
-        "F9Key" => Some(KeybdKey::F9Key),
-        "F10Key" => Some(KeybdKey::F10Key),
-        "F11Key" => Some(KeybdKey::F11Key),
-        "F12Key" => Some(KeybdKey::F12Key),
+        "F1" => Some(InputKey::Keyboard(F1Key)),
+        "F2" => Some(InputKey::Keyboard(F2Key)),
+        "F3" => Some(InputKey::Keyboard(F3Key)),
+        "F4" => Some(InputKey::Keyboard(F4Key)),
+        "F5" => Some(InputKey::Keyboard(F5Key)),
+        "F6" => Some(InputKey::Keyboard(F6Key)),
+        "F7" => Some(InputKey::Keyboard(F7Key)),
+        "F8" => Some(InputKey::Keyboard(F8Key)),
+        "F9" => Some(InputKey::Keyboard(F9Key)),
+        "F10" => Some(InputKey::Keyboard(F10Key)),
+        "F11" => Some(InputKey::Keyboard(F11Key)),
+        "F12" => Some(InputKey::Keyboard(F12Key)),
+        "X1Mouse" => Some(InputKey::Mouse(MouseButton::X1Button)),
+        "X2Mouse" => Some(InputKey::Mouse(MouseButton::X2Button)),
         _ => None,
     }
 }
@@ -1115,7 +1140,7 @@ fn micro_macro() {
             .iter()
             .position(|&c| c == settings.micro_macro_delay)
             .unwrap_or(0);
-        let micro_macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"];
+        let micro_macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse"];
         let mut micro_macro_hotkey_index = micro_macro_hotkeys
             .iter()
             .position(|&c| c == settings.micro_macro_hotkey)
@@ -1305,8 +1330,7 @@ fn micro_macro() {
             }
         }
         if let Some(pressed_key) = background_get_key(&mut prev_state) {
-            let hotkey = settings.micro_macro_hotkey + "Key";
-            if let Some(hotkey_enum) = string_to_keybdkey(&hotkey) {
+            if let Some(hotkey_enum) = string_to_key(&settings.micro_macro_hotkey) {
                 if pressed_key == hotkey_enum {
                     micro_macro_active = !micro_macro_active;
                 }
@@ -1535,7 +1559,7 @@ fn macro_tool() {
         }
         let macro_settings_menu_options = ["restart_when_pausing", "macro_hotkey", "repeat_once"];
         let mut macro_settings_menu_selected = 0;
-        let macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"];
+        let macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse"];
         let mut macro_hotkey_index = macro_hotkeys
             .iter()
             .position(|&c| c == settings.macro_hotkey)
@@ -1824,14 +1848,9 @@ fn macro_tool() {
                 }
             }
             if let Some(pressed_key) = background_get_key(&mut prev_state) {
-                let hotkey = settings.macro_hotkey + "Key";
-                if let Some(hotkey_enum) = string_to_keybdkey(&hotkey) {
+                if let Some(hotkey_enum) = string_to_key(&settings.macro_hotkey) {
                     if pressed_key == hotkey_enum {
                         macro_active = !macro_active;
-                        current_delay = 0;
-                        if settings.macro_restart_when_pausing {
-                            current_line = 0
-                        }
                     }
                 }
             }
@@ -2883,12 +2902,12 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
         .iter()
         .position(|&c| c == settings.port_scan_timeout)
         .unwrap_or(0);
-    let micro_macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"];
+    let micro_macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse"];
     let micro_macro_hotkey_index = micro_macro_hotkeys
         .iter()
         .position(|&c| c == settings.micro_macro_hotkey)
         .unwrap_or(0);
-    let macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"];
+    let macro_hotkeys = ["None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse"];
     let macro_hotkey_index = macro_hotkeys
         .iter()
         .position(|&c| c == settings.macro_hotkey)
