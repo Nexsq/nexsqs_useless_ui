@@ -1964,7 +1964,7 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_press" => {
+                            Some(ref cmd) if cmd == "mouse_press" || cmd == "mouse_hold" => {
                                 if let Some(button_str) = command_parts.get(1) {
                                     match button_str.to_lowercase().as_str() {
                                         "left" | "LMB" => {
@@ -2118,7 +2118,7 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "string" => {
+                            Some(ref cmd) if cmd == "string" || cmd == "text" => {
                                 if command_parts.len() > 1 {
                                     if let Some(mut text) = trimmed_line.strip_prefix("string") {
                                         text = text.trim();
