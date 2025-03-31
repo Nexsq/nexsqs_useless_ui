@@ -78,6 +78,8 @@ struct Settings {
     macro_hotkey: String,
     macro_restart_when_pausing: bool,
     macro_repeat_once: bool,
+    game_of_life_simulate_delay: u64,
+    game_of_life_save_input: bool,
     hide_help: bool,
     show_config_files: bool,
     custom_options: Vec<String>,
@@ -95,6 +97,8 @@ impl Settings {
             macro_hotkey: "None".to_string(),
             macro_restart_when_pausing: false,
             macro_repeat_once: false,
+            game_of_life_simulate_delay: 200,
+            game_of_life_save_input: false,
             hide_help: false,
             show_config_files: false,
             custom_options: Vec::new(),
@@ -150,11 +154,11 @@ impl Settings {
         self.save();
     }
     fn set_ping_delay(&mut self, new_delay: u64) {
-        self.ping_delay = new_delay.clamp(0, 4294967295);
+        self.ping_delay = new_delay.clamp(0, u64::MAX);
         self.save();
     }
     fn set_port_scan_timeout(&mut self, new_delay: u64) {
-        self.port_scan_timeout = new_delay.clamp(0, 4294967295);
+        self.port_scan_timeout = new_delay.clamp(0, u64::MAX);
         self.save();
     }
     fn set_micro_macro_hotkey(&mut self, new_hotkey: &str) {
@@ -166,7 +170,7 @@ impl Settings {
         self.save();
     }
     fn set_micro_macro_delay(&mut self, new_delay: u64) {
-        self.micro_macro_delay = new_delay.clamp(0, 4294967295);
+        self.micro_macro_delay = new_delay.clamp(0, u64::MAX);
         self.save();
     }
     fn set_macro_hotkey(&mut self, new_hotkey: &str) {
@@ -179,6 +183,14 @@ impl Settings {
     }
     fn set_macro_repeat_once(&mut self, new_value: bool) {
         self.macro_repeat_once = new_value;
+        self.save();
+    }
+    fn set_game_of_life_simulate_delay(&mut self, new_delay: u64) {
+        self.game_of_life_simulate_delay = new_delay.clamp(0, u64::MAX);
+        self.save();
+    }
+    fn set_game_of_life_save_input(&mut self, new_value: bool) {
+        self.game_of_life_save_input = new_value;
         self.save();
     }
     fn set_hide_help(&mut self, new_value: bool) {
@@ -1579,7 +1591,7 @@ fn macro_tool() {
             execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
-        let macro_settings_menu_options = ["restart_when_pausing", "macro_hotkey", "repeat_once"];
+        let macro_settings_menu_options = ["restart_when_pausing", "repeat_once", "macro_hotkey"];
         let mut macro_settings_menu_selected = 0;
         let macro_hotkeys = [
             "None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse",
@@ -1605,7 +1617,8 @@ fn macro_tool() {
                     KeyCode::Left => match macro_settings_menu_selected {
                         0 => settings
                             .set_macro_restart_when_pausing(!settings.macro_restart_when_pausing),
-                        1 => {
+                        1 => settings.set_macro_repeat_once(!settings.macro_repeat_once),
+                        2 => {
                             if macro_hotkey_index > 0 {
                                 settings.set_macro_hotkey(macro_hotkeys[macro_hotkey_index - 1])
                             } else {
@@ -1617,7 +1630,6 @@ fn macro_tool() {
                                 macro_hotkey_index = macro_hotkeys.len() - 1
                             }
                         }
-                        2 => settings.set_macro_repeat_once(!settings.macro_repeat_once),
                         _ => {}
                     },
                     KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
@@ -1630,13 +1642,13 @@ fn macro_tool() {
                     KeyCode::Right | KeyCode::Enter => match macro_settings_menu_selected {
                         0 => settings
                             .set_macro_restart_when_pausing(!settings.macro_restart_when_pausing),
-                        1 => {
+                        1 => settings.set_macro_repeat_once(!settings.macro_repeat_once),
+                        2 => {
                             settings.set_macro_hotkey(
                                 macro_hotkeys[(macro_hotkey_index + 1) % macro_hotkeys.len()],
                             );
                             macro_hotkey_index = (macro_hotkey_index + 1) % macro_hotkeys.len()
                         }
-                        2 => settings.set_macro_repeat_once(!settings.macro_repeat_once),
                         _ => {}
                     },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
@@ -2469,9 +2481,8 @@ fn tetris() {
 }
 
 fn game_of_life() {
-    let (width, height) = terminal::size().unwrap();
-    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
-    let help_more_string = String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | select: $[space]$ | play/stop: $[ent]$ |");
+    let help_more_string = String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | move: $[←]/[→]/[↑]/[↓]$ |"#);
     let help_line_count = help_more_string.lines().count() as u16;
     fn render_game_of_life(help_string: &String, help_more_string: &String) {
         let mut stdout = io::stdout();
@@ -2494,6 +2505,7 @@ fn game_of_life() {
     }
     fn game_of_life_settings() {
         fn render_game_of_life_settings(menu_selected: usize, menu_options: &[&str]) {
+            let settings = Settings::load();
             let mut stdout = io::stdout();
             let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
             let help_more_string = String::from(
@@ -2517,8 +2529,14 @@ fn game_of_life() {
                         i,
                         "›",
                         menu_options[i],
-                        if menu_options[i] == "test_setting1" {
-                            "test ".to_string()
+                        if menu_options[i] == "simulate_delay" {
+                            settings.game_of_life_simulate_delay.to_string() + "ms "
+                        } else if menu_options[i] == "save_input" {
+                            if settings.game_of_life_save_input {
+                                "1 ".to_string()
+                            } else {
+                                "0 ".to_string()
+                            }
                         } else {
                             " ".to_string()
                         },
@@ -2548,8 +2566,14 @@ fn game_of_life() {
             execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
-        let game_of_life_settings_menu_options = ["test_setting1", "test_setting2"];
+        let mut settings = Settings::load();
+        let game_of_life_settings_menu_options = ["simulate_delay", "save_input"];
         let mut game_of_life_settings_menu_selected = 0;
+        let game_of_life_simulate_delays = [5, 10, 25, 50, 75, 100, 200, 500, 1000];
+        let mut game_of_life_simulate_delay_index = game_of_life_simulate_delays
+            .iter()
+            .position(|&c| c == settings.game_of_life_simulate_delay)
+            .unwrap_or(0);
         let mut last_render_time = get_time();
         let (mut last_width, mut last_height) = terminal::size().unwrap();
         let mut needs_rendering = true;
@@ -2565,7 +2589,29 @@ fn game_of_life() {
                                 game_of_life_settings_menu_options.len() - 1
                         }
                     }
-                    KeyCode::Left => {}
+                    KeyCode::Left => match game_of_life_settings_menu_selected {
+                        0 => {
+                            if game_of_life_simulate_delay_index > 0 {
+                                settings.set_game_of_life_simulate_delay(
+                                    game_of_life_simulate_delays
+                                        [game_of_life_simulate_delay_index - 1],
+                                )
+                            } else {
+                                settings.set_game_of_life_simulate_delay(
+                                    game_of_life_simulate_delays
+                                        [game_of_life_simulate_delays.len() - 1],
+                                )
+                            };
+                            if game_of_life_simulate_delay_index > 0 {
+                                game_of_life_simulate_delay_index -= 1
+                            } else {
+                                game_of_life_simulate_delay_index =
+                                    game_of_life_simulate_delays.len() - 1
+                            }
+                        }
+                        1 => settings.set_game_of_life_save_input(!settings.game_of_life_save_input),
+                        _ => {}
+                    },
                     KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
                         if game_of_life_settings_menu_selected
                             < game_of_life_settings_menu_options.len() - 1
@@ -2575,7 +2621,20 @@ fn game_of_life() {
                             game_of_life_settings_menu_selected = 0
                         }
                     }
-                    KeyCode::Right => {}
+                    KeyCode::Right | KeyCode::Enter => match game_of_life_settings_menu_selected {
+                        0 => {
+                            settings.set_game_of_life_simulate_delay(
+                                game_of_life_simulate_delays[(game_of_life_simulate_delay_index
+                                    + 1)
+                                    % game_of_life_simulate_delays.len()],
+                            );
+                            game_of_life_simulate_delay_index = (game_of_life_simulate_delay_index
+                                + 1)
+                                % game_of_life_simulate_delays.len()
+                        }
+                        1 => settings.set_game_of_life_save_input(!settings.game_of_life_save_input),
+                        _ => {}
+                    },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                     KeyCode::Char('q') | KeyCode::Char('Q') => return,
@@ -2607,7 +2666,37 @@ fn game_of_life() {
             }
         }
     }
-    fn simulate(help_more_string_lines: u16) {
+    fn simulate(table: &mut Vec<Vec<i32>>) {
+        let mut next_table = table.clone();
+        for i in 0..table.len() {
+            for j in 0..table[i].len() {
+                let mut neighbors = 0;
+                for k in -1..=1 {
+                    for l in -1..=1 {
+                        if k == 0 && l == 0 {
+                            continue;
+                        }
+                        let ni = i as isize + k;
+                        let nj = j as isize + l;
+                        if ni >= 0
+                            && ni < table.len() as isize
+                            && nj >= 0
+                            && nj < table[i].len() as isize
+                        {
+                            if table[ni as usize][nj as usize] == 1 {
+                                neighbors += 1;
+                            }
+                        }
+                    }
+                }
+                if table[i][j] == 1 && (neighbors < 2 || neighbors > 3) {
+                    next_table[i][j] = 0;
+                } else if table[i][j] == 0 && neighbors == 3 {
+                    next_table[i][j] = 1;
+                }
+            }
+        }
+        *table = next_table;
         // $futureGrid = $grid.Clone()
         // 	for ($i = 0; $i -lt $gridSize; $i++) {
         // 		for ($n = 0; $n -lt $gridSize; $n++) {
@@ -2626,9 +2715,13 @@ fn game_of_life() {
         // 		}
         // 	}
         // 	$grid = $futureGrid
-        let settings = Settings::load();
     }
-    fn refresh_table(table: &mut Vec<Vec<i32>>, help_more_string_lines: u16) {
+    fn refresh_table(
+        table: &mut Vec<Vec<i32>>,
+        cursor_row: &mut usize,
+        cursor_col: &mut usize,
+        help_more_string_lines: u16,
+    ) {
         let settings = Settings::load();
         let (width, height) = terminal::size().unwrap();
         let (logo_0, _, _) = logo();
@@ -2641,7 +2734,7 @@ fn game_of_life() {
         if *help_open {
             help_length += help_more_string_lines;
         }
-        let new_height = height as usize - logo_0_lines.len() - 3 - help_length as usize;
+        let new_height = (height as usize - logo_0_lines.len() - 3 - help_length as usize) * 2;
         let new_width = width as usize - 2;
         let mut new_table = vec![vec![0; new_width]; new_height];
         for i in 0..new_height.min(table.len()) {
@@ -2649,89 +2742,196 @@ fn game_of_life() {
                 new_table[i][j] = table[i][j];
             }
         }
+        *cursor_row = (*cursor_row).min(new_height.saturating_sub(1));
+        *cursor_col = (*cursor_col).min(new_width.saturating_sub(1));
         *table = new_table;
     }
-    fn render_table(table: &Vec<Vec<i32>>, cursor_row: usize, cursor_col: usize) {
+    fn render_table(
+        table: &Vec<Vec<i32>>,
+        cursor_row: usize,
+        cursor_col: usize,
+        show_cursor: bool,
+    ) {
         let mut stdout = io::stdout();
         let mut output = String::new();
-        let table_str = table
-            .iter()
-            .enumerate()
-            .map(|(i, row)| {
-                let row_str = row
-                    .iter()
-                    .enumerate()
-                    .map(|(j, n)| {
-                        if i == cursor_row && j == cursor_col {
-                            format!(
-                                "{}{}{}",
-                                SetBackgroundColor(Color::Blue),
-                                n,
-                                SetBackgroundColor(Color::Black)
-                            ) // Cursor highlight
-                        } else {
-                            n.to_string()
+        let mut iter = table.chunks(2);
+        let mut row_idx = 0;
+        while let Some(rows) = iter.next() {
+            let upper = &rows[0];
+            let default_row = vec![0; upper.len()];
+            let lower = rows.get(1).unwrap_or(&default_row);
+            let row_str: String = upper
+                .iter()
+                .zip(lower.iter())
+                .enumerate()
+                .map(|(col_idx, (&u, &l))| {
+                    let symbol = match (u, l) {
+                        (1, 1) => "█",
+                        (1, 0) => "▀",
+                        (0, 1) => "▄",
+                        _ => " ",
+                    };
+                    let cursor_on_upper = cursor_row % 2 == 0;
+                    let cursor_matches = row_idx == cursor_row / 2 && col_idx == cursor_col;
+                    if cursor_matches && show_cursor {
+                        let mut _highlighted_square = String::new();
+                        match cursor_on_upper {
+                            true => _highlighted_square = "▀".to_string(),
+                            false => _highlighted_square = "▄".to_string(),
                         }
-                    })
-                    .collect::<Vec<String>>()
-                    .join("");
-                format!("│{}", row_str)
-            })
-            .collect::<Vec<String>>()
-            .join("\n");
-        output.push_str(&format!(
-            "{}{}{}",
-            cursor::MoveToColumn(0),
-            cursor::MoveUp(1),
-            table_str
-        ));
-        execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+                        let highlighted_symbol = match (u, l) {
+                            (1, 1) => format!(
+                                "{}{}{}{}{}",
+                                SetForegroundColor(get_color("main")),
+                                SetBackgroundColor(get_color("theme")),
+                                _highlighted_square,
+                                SetForegroundColor(get_color("theme")),
+                                SetBackgroundColor(Color::Black)
+                            ),
+                            (1, 0) => match cursor_on_upper {
+                                true => format!(
+                                    "{}{}{}",
+                                    SetForegroundColor(get_color("main")),
+                                    _highlighted_square,
+                                    SetForegroundColor(get_color("theme"))
+                                ),
+                                false => format!(
+                                    "{}{}{}{}{}",
+                                    SetForegroundColor(get_color("main")),
+                                    SetBackgroundColor(get_color("theme")),
+                                    _highlighted_square,
+                                    SetForegroundColor(get_color("theme")),
+                                    SetBackgroundColor(Color::Black)
+                                ),
+                            },
+                            (0, 1) => match cursor_on_upper {
+                                true => format!(
+                                    "{}{}{}{}{}",
+                                    SetForegroundColor(get_color("main")),
+                                    SetBackgroundColor(get_color("theme")),
+                                    _highlighted_square,
+                                    SetForegroundColor(get_color("theme")),
+                                    SetBackgroundColor(Color::Black)
+                                ),
+                                false => format!(
+                                    "{}{}{}",
+                                    SetForegroundColor(get_color("main")),
+                                    _highlighted_square,
+                                    SetForegroundColor(get_color("theme"))
+                                ),
+                            },
+                            (0, 0) => format!(
+                                "{}{}{}",
+                                SetForegroundColor(get_color("main")),
+                                _highlighted_square,
+                                SetForegroundColor(get_color("theme"))
+                            ),
+                            (_, _) => "".to_string(),
+                        };
+                        highlighted_symbol
+                    } else {
+                        symbol.to_string()
+                    }
+                })
+                .collect();
+            output.push_str(&format!("│{}│", row_str));
+            row_idx += 1;
+        }
+        execute!(stdout, cursor::MoveToColumn(0), cursor::MoveUp(1)).unwrap();
         print!("{}", output);
-        execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
         stdout.flush().unwrap();
     }
     let mut table: Vec<Vec<i32>> = vec![vec![0; 0]; 0];
+    let mut saved_input = table.clone();
+    let mut simulating = false;
     let mut cursor_row = 0;
     let mut cursor_col = 0;
-    refresh_table(&mut table, help_line_count);
+    let mut last_simulate = Instant::now();
+    refresh_table(
+        &mut table,
+        &mut cursor_row,
+        &mut cursor_col,
+        help_line_count,
+    );
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
     let mut needs_rendering = true;
     loop {
+        let settings = Settings::load();
+        if !simulating { saved_input = table.clone() }
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
-            match pressed_key {
-                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
-                    if cursor_row > 0 {
-                        cursor_row -= 1;
+            if !simulating {
+                match pressed_key {
+                    KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
+                        if cursor_row > 0 {
+                            cursor_row -= 1;
+                        } else {
+                            cursor_row = table.len() - 1;
+                        }
                     }
+                    KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
+                        if cursor_row < table.len() - 1 {
+                            cursor_row += 1;
+                        } else {
+                            cursor_row = 0;
+                        }
+                    }
+                    KeyCode::Left => {
+                        if cursor_col > 0 {
+                            cursor_col -= 1;
+                        } else {
+                            cursor_col = table[0].len() - 1;
+                        }
+                    }
+                    KeyCode::Right => {
+                        if cursor_col < table[0].len() - 1 {
+                            cursor_col += 1;
+                        } else {
+                            cursor_col = 0;
+                        }
+                    }
+                    KeyCode::Char(' ') => {
+                        if cursor_row < table.len() && cursor_col < table[0].len() {
+                            table[cursor_row][cursor_col] = if table[cursor_row][cursor_col] == 0 {
+                                1
+                            } else {
+                                0
+                            };
+                        }
+                    }
+                    KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
+                        game_of_life_settings()
+                    }
+                    KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
+                    KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                    KeyCode::Esc => process::exit(0),
+                    KeyCode::Enter => {
+                        simulating = !simulating;
+                        last_simulate = Instant::now()
+                    }
+                    _ => {}
                 }
-                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
-                    if cursor_row < table.len() - 1 {
-                        cursor_row += 1;
+            } else {
+                match pressed_key {
+                    KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
+                        game_of_life_settings()
                     }
+                    KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
+                    KeyCode::Char('q') | KeyCode::Char('Q') => return,
+                    KeyCode::Esc => process::exit(0),
+                    KeyCode::Enter | KeyCode::Char(' ') => { simulating = !simulating; if settings.game_of_life_save_input { table = saved_input.clone() } },
+                    _ => {}
                 }
-                KeyCode::Left => {
-                    if cursor_col > 0 {
-                        cursor_col -= 1;
-                    }
-                }
-                KeyCode::Right => {
-                    if cursor_col < table[0].len() - 1 {
-                        cursor_col += 1;
-                    }
-                }
-                KeyCode::Char(' ') => {
-                    if cursor_row < table.len() && cursor_col < table[0].len() {
-                        table[cursor_row][cursor_col] = if table[cursor_row][cursor_col] == 0 { 1 } else { 0 };
-                    }
-                }                
-                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => game_of_life_settings(),
-                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
-                KeyCode::Char('q') | KeyCode::Char('Q') => return,
-                KeyCode::Esc => process::exit(0),
-                _ => {}
             }
+        }
+        if simulating
+            && last_simulate.elapsed()
+                >= Duration::from_millis(settings.game_of_life_simulate_delay)
+        {
+            simulate(&mut table);
+            needs_rendering = true;
+            last_simulate = Instant::now();
         }
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
@@ -2740,9 +2940,14 @@ fn game_of_life() {
             || current_time != last_render_time
             || needs_rendering
         {
-            refresh_table(&mut table, help_line_count);
             render_game_of_life(&help_string, &help_more_string);
-            render_table(&table, cursor_row, cursor_col);
+            refresh_table(
+                &mut table,
+                &mut cursor_row,
+                &mut cursor_col,
+                help_line_count,
+            );
+            render_table(&table, cursor_row, cursor_col, !simulating);
             last_render_time = current_time;
             last_width = width;
             last_height = height;
