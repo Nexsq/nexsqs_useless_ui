@@ -2469,17 +2469,23 @@ fn tetris() {
 }
 
 fn game_of_life() {
-    fn render_game_of_life() {
+    let (width, height) = terminal::size().unwrap();
+    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
+    let help_more_string = String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
+    let help_line_count = help_more_string.lines().count() as u16;
+    fn render_game_of_life(help_string: &String, help_more_string: &String) {
         let mut stdout = io::stdout();
-        let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
-        let help_more_string = String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
         let mut output = String::new();
         output.push_str(&render_top(
             "game_of_life",
             Some("game_of_life_settings"),
             false,
         ));
-        output.push_str(&render_bottom(0, help_string, help_more_string));
+        output.push_str(&render_bottom(
+            0,
+            help_string.clone(),
+            help_more_string.clone(),
+        ));
         execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
         clear();
         print!("{}", output);
@@ -2601,6 +2607,93 @@ fn game_of_life() {
             }
         }
     }
+    fn simulate(help_more_string_lines: u16) {
+        // $futureGrid = $grid.Clone()
+        // 	for ($i = 0; $i -lt $gridSize; $i++) {
+        // 		for ($n = 0; $n -lt $gridSize; $n++) {
+        // 			$neighbours = 0
+        // 			for ($j = -1; $j -le 1; $j++) {
+        // 				for ($k = -1; $k -le 1; $k++) {
+        // 					if ($j -eq 0 -and $k -eq 0) { continue }
+        // 					if ($n + $j -ge 0 -and $n + $j -lt $gridSize -and $i + $k -ge 0 -and $i + $k -lt $gridSize) {
+        // 						if ($grid[($n + $j), ($i + $k)]) { $neighbours++ }
+        // 					}
+        // 				}
+        // 			}
+        // 			if ($grid[$n, $i] -and $neighbours -lt 2) { $futureGrid[$n, $i] = $false }
+        // 			if ($grid[$n, $i] -and $neighbours -gt 3) { $futureGrid[$n, $i] = $false }
+        // 			if (!($grid[$n, $i]) -and $neighbours -eq 3) { $futureGrid[$n, $i] = $true }
+        // 		}
+        // 	}
+        // 	$grid = $futureGrid
+        let settings = Settings::load();
+    }
+    fn refresh_table(table: &mut Vec<Vec<i32>>, help_more_string_lines: u16) {
+        let settings = Settings::load();
+        let (width, height) = terminal::size().unwrap();
+        let (logo_0, _, _) = logo();
+        let logo_0_lines: Vec<&str> = logo_0.lines().collect();
+        let mut help_length = 0;
+        if !settings.hide_help {
+            help_length += 1;
+        }
+        let help_open = HELP_OPEN.lock().unwrap();
+        if *help_open {
+            help_length += help_more_string_lines;
+        }
+        let new_height = height as usize - logo_0_lines.len() - 3 - help_length as usize;
+        let new_width = width as usize - 2;
+        let mut new_table = vec![vec![0; new_width]; new_height];
+        for i in 0..new_height.min(table.len()) {
+            for j in 0..new_width.min(table[i].len()) {
+                new_table[i][j] = table[i][j];
+            }
+        }
+        *table = new_table;
+    }
+    fn render_table(table: &Vec<Vec<i32>>, cursor_row: usize, cursor_col: usize) {
+        let mut stdout = io::stdout();
+        let mut output = String::new();
+        let table_str = table
+            .iter()
+            .enumerate()
+            .map(|(i, row)| {
+                let row_str = row
+                    .iter()
+                    .enumerate()
+                    .map(|(j, n)| {
+                        if i == cursor_row && j == cursor_col {
+                            format!(
+                                "{}{}{}",
+                                SetBackgroundColor(Color::Blue),
+                                n,
+                                SetBackgroundColor(Color::Black)
+                            ) // Cursor highlight
+                        } else {
+                            n.to_string()
+                        }
+                    })
+                    .collect::<Vec<String>>()
+                    .join("");
+                format!("│{}", row_str)
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
+        output.push_str(&format!(
+            "{}{}{}",
+            cursor::MoveToColumn(0),
+            cursor::MoveUp(1),
+            table_str
+        ));
+        execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
+        print!("{}", output);
+        execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
+        stdout.flush().unwrap();
+    }
+    let mut table: Vec<Vec<i32>> = vec![vec![0; 0]; 0];
+    let mut cursor_row = 0;
+    let mut cursor_col = 0;
+    refresh_table(&mut table, help_line_count);
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
     let mut needs_rendering = true;
@@ -2608,6 +2701,31 @@ fn game_of_life() {
         if let Some(pressed_key) = get_key() {
             needs_rendering = true;
             match pressed_key {
+                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
+                    if cursor_row > 0 {
+                        cursor_row -= 1;
+                    }
+                }
+                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
+                    if cursor_row < table.len() - 1 {
+                        cursor_row += 1;
+                    }
+                }
+                KeyCode::Left => {
+                    if cursor_col > 0 {
+                        cursor_col -= 1;
+                    }
+                }
+                KeyCode::Right => {
+                    if cursor_col < table[0].len() - 1 {
+                        cursor_col += 1;
+                    }
+                }
+                KeyCode::Char(' ') => {
+                    if cursor_row < table.len() && cursor_col < table[0].len() {
+                        table[cursor_row][cursor_col] = if table[cursor_row][cursor_col] == 0 { 1 } else { 0 };
+                    }
+                }                
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => game_of_life_settings(),
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                 KeyCode::Char('q') | KeyCode::Char('Q') => return,
@@ -2622,7 +2740,9 @@ fn game_of_life() {
             || current_time != last_render_time
             || needs_rendering
         {
-            render_game_of_life();
+            refresh_table(&mut table, help_line_count);
+            render_game_of_life(&help_string, &help_more_string);
+            render_table(&table, cursor_row, cursor_col);
             last_render_time = current_time;
             last_width = width;
             last_height = height;
