@@ -1,5 +1,5 @@
 [package]
-name = "nuui_rust_edition"
+name = "nuui_3-0"
 version = "0.1.0"
 edition = "2021"
 
