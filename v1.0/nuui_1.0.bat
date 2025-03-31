@@ -1,6 +1,6 @@
 <# : Batch portion
 @echo off & setlocal enabledelayedexpansion
-
+a
 set "scriptPath=%~dp0"
 set "filePath=%scriptPath%NUUI_settings.txt"
 
