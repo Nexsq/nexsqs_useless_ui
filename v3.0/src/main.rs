@@ -3050,8 +3050,9 @@ fn game_of_life() {
             render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
             last_simulate = Instant::now();
         }
-        if simulating && last_speed_render.elapsed() >= Duration::from_millis(1500) {
+        if simulating && speed_changed && last_speed_render.elapsed() >= Duration::from_millis(1500) {
             render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
+            speed_changed = false;
         }
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
