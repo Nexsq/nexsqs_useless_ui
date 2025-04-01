@@ -2875,7 +2875,7 @@ fn game_of_life() {
                 );
                 output = new_output;
             }
-            if speed_changed && last_speed_render.elapsed() < Duration::from_millis(1500) {
+            if speed_changed && last_speed_render.elapsed() < Duration::from_millis(500) {
                 let speed_str = format!("│speed {}", settings.game_of_life_simulate_delay);
                 let mut new_output = String::new();
                 new_output.push_str(&speed_str);
@@ -3050,7 +3050,7 @@ fn game_of_life() {
             render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
             last_simulate = Instant::now();
         }
-        if simulating && speed_changed && last_speed_render.elapsed() >= Duration::from_millis(1500) {
+        if simulating && speed_changed && last_speed_render.elapsed() >= Duration::from_millis(500) {
             render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
             speed_changed = false;
         }
