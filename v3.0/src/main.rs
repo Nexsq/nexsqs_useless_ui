@@ -80,6 +80,7 @@ struct Settings {
     macro_repeat_once: bool,
     game_of_life_simulate_delay: u64,
     game_of_life_save_input: bool,
+    game_of_life_show_generation: bool,
     hide_help: bool,
     show_config_files: bool,
     custom_options: Vec<String>,
@@ -99,6 +100,7 @@ impl Settings {
             macro_repeat_once: false,
             game_of_life_simulate_delay: 200,
             game_of_life_save_input: false,
+            game_of_life_show_generation: true,
             hide_help: false,
             show_config_files: false,
             custom_options: Vec::new(),
@@ -191,6 +193,10 @@ impl Settings {
     }
     fn set_game_of_life_save_input(&mut self, new_value: bool) {
         self.game_of_life_save_input = new_value;
+        self.save();
+    }
+    fn set_game_of_life_show_generation(&mut self, new_value: bool) {
+        self.game_of_life_show_generation = new_value;
         self.save();
     }
     fn set_hide_help(&mut self, new_value: bool) {
@@ -508,7 +514,7 @@ fn render_bottom(mid_length: u16, help_string: String, help_more_string: String)
                         output.push_str(&format!("{}", SetBackgroundColor(get_color("main"))));
                         output.push_str(part);
                         output.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
-                        output.push_str(&format!("{}", SetBackgroundColor(Color::Black)));
+                        output.push_str(&format!("{}", SetBackgroundColor(Color::Reset)));
                     } else {
                         output.push_str(part);
                     }
@@ -531,7 +537,7 @@ fn render_bottom(mid_length: u16, help_string: String, help_more_string: String)
                 output.push_str(&format!("{}", SetBackgroundColor(get_color("main"))));
                 output.push_str(part);
                 output.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
-                output.push_str(&format!("{}", SetBackgroundColor(Color::Black)));
+                output.push_str(&format!("{}", SetBackgroundColor(Color::Reset)));
             } else {
                 output.push_str(part);
             }
@@ -1037,7 +1043,7 @@ fn micro_macro() {
             SetForegroundColor(Color::Black),
             is_active,
             SetForegroundColor(get_color("theme")),
-            SetBackgroundColor(Color::Black),
+            SetBackgroundColor(Color::Reset),
             cursor::MoveToColumn(width)
         ));
         output.push_str("│");
@@ -1049,7 +1055,7 @@ fn micro_macro() {
             SetForegroundColor(Color::Black),
             settings.micro_macro_hotkey,
             SetForegroundColor(get_color("theme")),
-            SetBackgroundColor(Color::Black),
+            SetBackgroundColor(Color::Reset),
             cursor::MoveToColumn(width)
         ));
         output.push_str("│");
@@ -1113,7 +1119,7 @@ fn micro_macro() {
                             " ".to_string()
                         },
                         SetForegroundColor(get_color("theme")),
-                        SetBackgroundColor(Color::Black),
+                        SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
                     output.push_str("│\n");
@@ -1454,7 +1460,7 @@ fn macro_tool() {
                             " ".to_string()
                         },
                         SetForegroundColor(get_color("theme")),
-                        SetBackgroundColor(Color::Black),
+                        SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
                     output.push_str("│\n");
@@ -1487,7 +1493,7 @@ fn macro_tool() {
                             " ".to_string()
                         },
                         SetForegroundColor(get_color("theme")),
-                        SetBackgroundColor(Color::Black),
+                        SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
                     output.push_str("│\n");
@@ -1562,7 +1568,7 @@ fn macro_tool() {
                             " ".to_string()
                         },
                         SetForegroundColor(get_color("theme")),
-                        SetBackgroundColor(Color::Black),
+                        SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
                     output.push_str("│\n");
@@ -1707,7 +1713,7 @@ fn macro_tool() {
                 SetForegroundColor(Color::Black),
                 is_active,
                 SetForegroundColor(get_color("theme")),
-                SetBackgroundColor(Color::Black),
+                SetBackgroundColor(Color::Reset),
                 cursor::MoveToColumn(width)
             ));
             output.push_str("│");
@@ -1719,7 +1725,7 @@ fn macro_tool() {
                 SetForegroundColor(Color::Black),
                 settings.macro_hotkey,
                 SetForegroundColor(get_color("theme")),
-                SetBackgroundColor(Color::Black),
+                SetBackgroundColor(Color::Reset),
                 cursor::MoveToColumn(width)
             ));
             output.push_str(&render_bottom(3, help_string, help_more_string));
@@ -2369,7 +2375,7 @@ fn tetris() {
                             " ".to_string()
                         },
                         SetForegroundColor(get_color("theme")),
-                        SetBackgroundColor(Color::Black),
+                        SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
                     output.push_str("│\n");
@@ -2481,8 +2487,18 @@ fn tetris() {
 }
 
 fn game_of_life() {
-    let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | select: $[space]$ | play/stop: $[ent]$ |");
-    let help_more_string = String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | move: $[←]/[→]/[↑]/[↓]$ |"#);
+    let help_string = String::from(
+        "| quit: $[esc]$ | change tab: $[a]/[d]$ | select: $[space]$ | play: $[ent]$ |",
+    );
+    let help_more_string = String::from(
+        r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | move: $[←]/[→]/[↑/w]/[↓/s]$ |"#,
+    );
+    let help_string_simulating = String::from(
+        "| quit: $[esc]$ | change tab: $[a]/[d]$ | pause: $[space]$ | stop: $[ent]$ |",
+    );
+    let help_more_string_simulating = String::from(
+        r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | move one gen: $[↑/w]/[↓/s]$ | change speed: $[←]/[→]$ |"#,
+    );
     let help_line_count = help_more_string.lines().count() as u16;
     fn render_game_of_life(help_string: &String, help_more_string: &String) {
         let mut stdout = io::stdout();
@@ -2537,11 +2553,17 @@ fn game_of_life() {
                             } else {
                                 "0 ".to_string()
                             }
+                        } else if menu_options[i] == "show_generation" {
+                            if settings.game_of_life_show_generation {
+                                "1 ".to_string()
+                            } else {
+                                "0 ".to_string()
+                            }
                         } else {
                             " ".to_string()
                         },
                         SetForegroundColor(get_color("theme")),
-                        SetBackgroundColor(Color::Black),
+                        SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
                     output.push_str("│\n");
@@ -2567,7 +2589,8 @@ fn game_of_life() {
             stdout.flush().unwrap();
         }
         let mut settings = Settings::load();
-        let game_of_life_settings_menu_options = ["simulate_delay", "save_input"];
+        let game_of_life_settings_menu_options =
+            ["simulate_delay", "save_input", "show_generation"];
         let mut game_of_life_settings_menu_selected = 0;
         let game_of_life_simulate_delays = [5, 10, 25, 50, 75, 100, 200, 500, 1000];
         let mut game_of_life_simulate_delay_index = game_of_life_simulate_delays
@@ -2609,7 +2632,12 @@ fn game_of_life() {
                                     game_of_life_simulate_delays.len() - 1
                             }
                         }
-                        1 => settings.set_game_of_life_save_input(!settings.game_of_life_save_input),
+                        1 => {
+                            settings.set_game_of_life_save_input(!settings.game_of_life_save_input)
+                        }
+                        2 => settings.set_game_of_life_show_generation(
+                            !settings.game_of_life_show_generation,
+                        ),
                         _ => {}
                     },
                     KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
@@ -2632,7 +2660,12 @@ fn game_of_life() {
                                 + 1)
                                 % game_of_life_simulate_delays.len()
                         }
-                        1 => settings.set_game_of_life_save_input(!settings.game_of_life_save_input),
+                        1 => {
+                            settings.set_game_of_life_save_input(!settings.game_of_life_save_input)
+                        }
+                        2 => settings.set_game_of_life_show_generation(
+                            !settings.game_of_life_show_generation,
+                        ),
                         _ => {}
                     },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
@@ -2697,24 +2730,6 @@ fn game_of_life() {
             }
         }
         *table = next_table;
-        // $futureGrid = $grid.Clone()
-        // 	for ($i = 0; $i -lt $gridSize; $i++) {
-        // 		for ($n = 0; $n -lt $gridSize; $n++) {
-        // 			$neighbours = 0
-        // 			for ($j = -1; $j -le 1; $j++) {
-        // 				for ($k = -1; $k -le 1; $k++) {
-        // 					if ($j -eq 0 -and $k -eq 0) { continue }
-        // 					if ($n + $j -ge 0 -and $n + $j -lt $gridSize -and $i + $k -ge 0 -and $i + $k -lt $gridSize) {
-        // 						if ($grid[($n + $j), ($i + $k)]) { $neighbours++ }
-        // 					}
-        // 				}
-        // 			}
-        // 			if ($grid[$n, $i] -and $neighbours -lt 2) { $futureGrid[$n, $i] = $false }
-        // 			if ($grid[$n, $i] -and $neighbours -gt 3) { $futureGrid[$n, $i] = $false }
-        // 			if (!($grid[$n, $i]) -and $neighbours -eq 3) { $futureGrid[$n, $i] = $true }
-        // 		}
-        // 	}
-        // 	$grid = $futureGrid
     }
     fn refresh_table(
         table: &mut Vec<Vec<i32>>,
@@ -2734,7 +2749,11 @@ fn game_of_life() {
         if *help_open {
             help_length += help_more_string_lines;
         }
-        let new_height = (height as usize - logo_0_lines.len() - 3 - help_length as usize) * 2;
+        let adjusted_height = (height as usize)
+            .saturating_sub(logo_0_lines.len())
+            .saturating_sub(3)
+            .saturating_sub(help_length as usize);
+        let new_height = adjusted_height * 2;
         let new_width = width as usize - 2;
         let mut new_table = vec![vec![0; new_width]; new_height];
         for i in 0..new_height.min(table.len()) {
@@ -2748,12 +2767,18 @@ fn game_of_life() {
     }
     fn render_table(
         table: &Vec<Vec<i32>>,
+        generation: u32,
+        last_speed_render: Instant,
+        speed_changed: bool,
         cursor_row: usize,
         cursor_col: usize,
-        show_cursor: bool,
+        simulating: bool,
     ) {
+        let settings = Settings::load();
         let mut stdout = io::stdout();
         let mut output = String::new();
+        let (logo_0, _, _) = logo();
+        let logo_0_lines = logo_0.lines().count();
         let mut iter = table.chunks(2);
         let mut row_idx = 0;
         while let Some(rows) = iter.next() {
@@ -2773,7 +2798,7 @@ fn game_of_life() {
                     };
                     let cursor_on_upper = cursor_row % 2 == 0;
                     let cursor_matches = row_idx == cursor_row / 2 && col_idx == cursor_col;
-                    if cursor_matches && show_cursor {
+                    if cursor_matches && !simulating {
                         let mut _highlighted_square = String::new();
                         match cursor_on_upper {
                             true => _highlighted_square = "▀".to_string(),
@@ -2786,7 +2811,7 @@ fn game_of_life() {
                                 SetBackgroundColor(get_color("theme")),
                                 _highlighted_square,
                                 SetForegroundColor(get_color("theme")),
-                                SetBackgroundColor(Color::Black)
+                                SetBackgroundColor(Color::Reset)
                             ),
                             (1, 0) => match cursor_on_upper {
                                 true => format!(
@@ -2801,7 +2826,7 @@ fn game_of_life() {
                                     SetBackgroundColor(get_color("theme")),
                                     _highlighted_square,
                                     SetForegroundColor(get_color("theme")),
-                                    SetBackgroundColor(Color::Black)
+                                    SetBackgroundColor(Color::Reset)
                                 ),
                             },
                             (0, 1) => match cursor_on_upper {
@@ -2811,7 +2836,7 @@ fn game_of_life() {
                                     SetBackgroundColor(get_color("theme")),
                                     _highlighted_square,
                                     SetForegroundColor(get_color("theme")),
-                                    SetBackgroundColor(Color::Black)
+                                    SetBackgroundColor(Color::Reset)
                                 ),
                                 false => format!(
                                     "{}{}{}",
@@ -2837,16 +2862,48 @@ fn game_of_life() {
             output.push_str(&format!("│{}│", row_str));
             row_idx += 1;
         }
-        execute!(stdout, cursor::MoveToColumn(0), cursor::MoveUp(1)).unwrap();
+        if simulating {
+            if settings.game_of_life_show_generation {
+                let gen_str = format!("│gen {}", generation);
+                let mut new_output = String::new();
+                new_output.push_str(&gen_str);
+                new_output.push_str(
+                    &output
+                        .chars()
+                        .skip(gen_str.chars().count())
+                        .collect::<String>(),
+                );
+                output = new_output;
+            }
+            if speed_changed && last_speed_render.elapsed() < Duration::from_millis(1500) {
+                let speed_str = format!("│speed {}", settings.game_of_life_simulate_delay);
+                let mut new_output = String::new();
+                new_output.push_str(&speed_str);
+                new_output.push_str(
+                    &output
+                        .chars()
+                        .skip(speed_str.chars().count())
+                        .collect::<String>(),
+                );
+                output = new_output;
+            }
+        }
+        execute!(stdout, cursor::MoveTo(0, logo_0_lines as u16 + 2),).unwrap();
+        execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
         print!("{}", output);
+        execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
         stdout.flush().unwrap();
     }
     let mut table: Vec<Vec<i32>> = vec![vec![0; 0]; 0];
     let mut saved_input = table.clone();
+    let mut generation: u32 = 0;
     let mut simulating = false;
+    let mut paused = false;
+    let mut last_simulate = Instant::now();
+    let mut last_speed_render = Instant::now();
+    let mut speed_changed = false;
     let mut cursor_row = 0;
     let mut cursor_col = 0;
-    let mut last_simulate = Instant::now();
     refresh_table(
         &mut table,
         &mut cursor_row,
@@ -2857,10 +2914,11 @@ fn game_of_life() {
     let (mut last_width, mut last_height) = terminal::size().unwrap();
     let mut needs_rendering = true;
     loop {
-        let settings = Settings::load();
-        if !simulating { saved_input = table.clone() }
+        let mut settings = Settings::load();
+        if !simulating {
+            saved_input = table.clone()
+        }
         if let Some(pressed_key) = get_key() {
-            needs_rendering = true;
             if !simulating {
                 match pressed_key {
                     KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
@@ -2901,37 +2959,99 @@ fn game_of_life() {
                         }
                     }
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
+                        needs_rendering = true;
                         game_of_life_settings()
                     }
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                     KeyCode::Char('q') | KeyCode::Char('Q') => return,
                     KeyCode::Esc => process::exit(0),
                     KeyCode::Enter => {
+                        needs_rendering = true;
                         simulating = !simulating;
                         last_simulate = Instant::now()
                     }
-                    _ => {}
+                    _ => needs_rendering = true,
                 }
+                render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating)
             } else {
                 match pressed_key {
+                    KeyCode::Up
+                    | KeyCode::Char('w')
+                    | KeyCode::Char('W')
+                    | KeyCode::Down
+                    | KeyCode::Char('s')
+                    | KeyCode::Char('S') => {
+                        generation += 1;
+                        simulate(&mut table);
+                        render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
+                        last_simulate = Instant::now();
+                    }
+                    KeyCode::Left => {
+                        let game_of_life_simulate_delays = [5, 10, 25, 50, 75, 100, 200, 500, 1000];
+                        let game_of_life_simulate_delay_index = game_of_life_simulate_delays
+                            .iter()
+                            .position(|&c| c == settings.game_of_life_simulate_delay)
+                            .unwrap_or(0);
+                        if game_of_life_simulate_delay_index > 0 {
+                            settings.set_game_of_life_simulate_delay(
+                                game_of_life_simulate_delays[game_of_life_simulate_delay_index - 1],
+                            )
+                        } else {
+                            settings.set_game_of_life_simulate_delay(
+                                game_of_life_simulate_delays
+                                    [game_of_life_simulate_delays.len() - 1],
+                            )
+                        };
+                        last_speed_render = Instant::now();
+                        speed_changed = true;
+                        render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating)
+                    }
+                    KeyCode::Right => {
+                        let game_of_life_simulate_delays = [5, 10, 25, 50, 75, 100, 200, 500, 1000];
+                        let game_of_life_simulate_delay_index = game_of_life_simulate_delays
+                            .iter()
+                            .position(|&c| c == settings.game_of_life_simulate_delay)
+                            .unwrap_or(0);
+                        settings.set_game_of_life_simulate_delay(
+                            game_of_life_simulate_delays[(game_of_life_simulate_delay_index + 1)
+                                % game_of_life_simulate_delays.len()],
+                        );
+                        last_speed_render = Instant::now();
+                        speed_changed = true;
+                        render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating)
+                    }
+                    KeyCode::Char(' ') => paused = !paused,
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
+                        needs_rendering = true;
                         game_of_life_settings()
                     }
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                     KeyCode::Char('q') | KeyCode::Char('Q') => return,
                     KeyCode::Esc => process::exit(0),
-                    KeyCode::Enter | KeyCode::Char(' ') => { simulating = !simulating; if settings.game_of_life_save_input { table = saved_input.clone() } },
-                    _ => {}
+                    KeyCode::Enter => {
+                        needs_rendering = true;
+                        simulating = !simulating;
+                        if settings.game_of_life_save_input {
+                            table = saved_input.clone();
+                            generation = 0
+                        }
+                    }
+                    _ => needs_rendering = true,
                 }
             }
         }
         if simulating
+            && !paused
             && last_simulate.elapsed()
                 >= Duration::from_millis(settings.game_of_life_simulate_delay)
         {
+            generation += 1;
             simulate(&mut table);
-            needs_rendering = true;
+            render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
             last_simulate = Instant::now();
+        }
+        if simulating && last_speed_render.elapsed() >= Duration::from_millis(1500) {
+            render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
         }
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
@@ -2940,14 +3060,18 @@ fn game_of_life() {
             || current_time != last_render_time
             || needs_rendering
         {
-            render_game_of_life(&help_string, &help_more_string);
+            if !simulating {
+                render_game_of_life(&help_string, &help_more_string)
+            } else {
+                render_game_of_life(&help_string_simulating, &help_more_string_simulating)
+            }
             refresh_table(
                 &mut table,
                 &mut cursor_row,
                 &mut cursor_col,
                 help_line_count,
             );
-            render_table(&table, cursor_row, cursor_col, !simulating);
+            render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
             last_render_time = current_time;
             last_width = width;
             last_height = height;
@@ -3200,7 +3324,7 @@ fn sys_fetch() {
             line_content.push_str(&format!(
                 "{}{}   {}   {}   {}   {}   {}   {}   {}   {}",
                 SetForegroundColor(get_color("theme")),
-                SetBackgroundColor(Color::Black),
+                SetBackgroundColor(Color::Reset),
                 SetBackgroundColor(Color::DarkRed),
                 SetBackgroundColor(Color::DarkYellow),
                 SetBackgroundColor(Color::DarkGreen),
@@ -3208,7 +3332,7 @@ fn sys_fetch() {
                 SetBackgroundColor(Color::DarkBlue),
                 SetBackgroundColor(Color::Magenta),
                 SetBackgroundColor(Color::Grey),
-                SetBackgroundColor(Color::Black)
+                SetBackgroundColor(Color::Reset)
             ));
         }
         output.push_str(&format!(
@@ -3459,7 +3583,7 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
                     " ".to_string()
                 },
                 SetForegroundColor(get_color("theme")),
-                SetBackgroundColor(Color::Black),
+                SetBackgroundColor(Color::Reset),
                 cursor::MoveToColumn(width)
             ));
             output.push_str("│\n");
@@ -3614,7 +3738,7 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
                 "›",
                 menu_options[i],
                 SetForegroundColor(get_color("theme")),
-                SetBackgroundColor(Color::Black),
+                SetBackgroundColor(Color::Reset),
                 cursor::MoveToColumn(width)
             ));
             output.push_str("│\n");
