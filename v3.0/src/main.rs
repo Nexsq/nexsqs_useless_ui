@@ -483,9 +483,7 @@ fn render_bottom(mid_length: u16, help_string: String, help_more_string: String)
         && height > 8 + help_more_height + mid_length
     {
         for _ in 0..height - 8 - help_more_height - mid_length {
-            output.push_str("│");
-            output.push_str(&format!("{}", cursor::MoveToColumn(width)));
-            output.push_str("│\n");
+            output.push_str(&format!("│{}│\n", cursor::MoveToColumn(width)));
         }
     }
     output.push_str("╰");
@@ -598,7 +596,9 @@ fn ping_tool() {
                 pings.remove(0);
             }
         }
-        pings.push(ping);
+        if !ping.is_empty() {
+            pings.push(ping);
+        }
     }
     fn print_pings(pings: &mut Vec<String>) -> usize {
         let (width, _) = terminal::size().unwrap();
@@ -710,6 +710,8 @@ fn ping_tool() {
             || needs_rendering
         {
             render_ping_tool(&help_string, &help_more_string, &ip.to_string());
+            add_ping(&mut pings, "".to_string(), help_line_count);
+            print_pings(&mut pings);
             last_render_time = current_time;
             last_width = width;
             last_height = height;
@@ -765,7 +767,9 @@ fn port_scan() {
                 port_scans.remove(0);
             }
         }
-        port_scans.push(port_scan);
+        if !port_scan.is_empty() {
+            port_scans.push(port_scan);
+        }
     }
     fn clear_port_scans() {
         let mut port_scans = PORT_SCANS.lock().unwrap();
@@ -899,7 +903,6 @@ fn port_scan() {
         }
     }
     print_port_scans(&PORT_SCANS.lock().unwrap());
-    print_open_ports(help_line_count, &OPEN_PORTS.lock().unwrap());
     let mut handle: Option<thread::JoinHandle<()>> = None;
     loop {
         if let Some(pressed_key) = get_key() {
@@ -998,6 +1001,9 @@ fn port_scan() {
                 &ip.to_string(),
                 starting_port.parse::<i32>().unwrap_or(0),
             );
+            add_port_scan("".to_string(), help_line_count);
+            print_port_scans(&PORT_SCANS.lock().unwrap());
+            print_open_ports(help_line_count, &OPEN_PORTS.lock().unwrap());
             last_render_time = current_time;
             last_width = width;
             last_height = height;
@@ -1036,9 +1042,8 @@ fn micro_macro() {
             Some("micro_macro_settings"),
             false,
         ));
-        output.push_str("│");
         output.push_str(&format!(
-            " Status: {}{}{}{}{}{}│\n",
+            "│ Status: {}{}{}{}{}{}│\n",
             SetBackgroundColor(get_color("main")),
             SetForegroundColor(Color::Black),
             is_active,
@@ -1046,11 +1051,9 @@ fn micro_macro() {
             SetBackgroundColor(Color::Reset),
             cursor::MoveToColumn(width)
         ));
-        output.push_str("│");
-        output.push_str(&format!("{}│\n", cursor::MoveToColumn(width)));
-        output.push_str("│");
+        output.push_str(&format!("│{}│\n", cursor::MoveToColumn(width)));
         output.push_str(&format!(
-            " Hotkey: {}{}[{}]{}{}{}│\n",
+            "│ Hotkey: {}{}[{}]{}{}{}│\n",
             SetBackgroundColor(get_color("main")),
             SetForegroundColor(Color::Black),
             settings.micro_macro_hotkey,
@@ -1058,11 +1061,9 @@ fn micro_macro() {
             SetBackgroundColor(Color::Reset),
             cursor::MoveToColumn(width)
         ));
-        output.push_str("│");
-        output.push_str(&format!("{}│\n", cursor::MoveToColumn(width)));
-        output.push_str("│");
+        output.push_str(&format!("│{}│\n", cursor::MoveToColumn(width)));
         output.push_str(&format!(
-            " Pressing {} every {}{}│\n",
+            "│ Pressing {} every {}{}│\n",
             settings.micro_macro_key,
             format!("{}{}", display_delay, delay_unit),
             cursor::MoveToColumn(width)
@@ -1093,13 +1094,11 @@ fn micro_macro() {
             ));
             for i in 0..menu_options.len() {
                 if i == menu_selected {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{}{} {} {} {} {}{}{}{}",
+                        "│{}{} {} › {} {}{}{}{}│\n",
                         SetBackgroundColor(get_color("main")),
                         SetForegroundColor(Color::Black),
                         i,
-                        "›",
                         menu_options[i],
                         if menu_options[i] == "micro_macro_key" {
                             settings.micro_macro_key.to_string() + " "
@@ -1122,15 +1121,12 @@ fn micro_macro() {
                         SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
-                    output.push_str("│\n");
                 } else {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{} {} {}{} {}{}{}│\n",
+                        "│{} {} {}| {}{}{}│\n",
                         SetForegroundColor(get_color("main")),
                         i,
                         SetForegroundColor(Color::DarkGrey),
-                        "|",
                         SetForegroundColor(get_color("theme")),
                         menu_options[i],
                         cursor::MoveToColumn(width)
@@ -1431,7 +1427,6 @@ fn micro_macro() {
 
 fn macro_tool() {
     fn render_macro_tool_menu(menu_selected: usize, menu_options: &[&str]) {
-        let settings = Settings::load();
         let mut stdout = io::stdout();
         let help_string = String::from(
             "| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | select: $[ent]$ |",
@@ -1446,65 +1441,49 @@ fn macro_tool() {
         for i in 0..menu_options.len() {
             if i == 0 {
                 if i == menu_selected {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{}{} {} {} {} {}{}{}{}",
+                        "│{}{}   › {}  {}{}{}│\n",
                         SetBackgroundColor(get_color("main")),
                         SetForegroundColor(Color::Black),
-                        " ",
-                        "›",
                         menu_options[i],
-                        if menu_options[i] == "macro_hotkey" {
-                            settings.macro_hotkey.to_string() + " "
-                        } else {
-                            " ".to_string()
-                        },
                         SetForegroundColor(get_color("theme")),
                         SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
-                    output.push_str("│\n");
                 } else {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{} {} {}{} {}{}{}│\n",
+                        "│{}   {}| {}{}{}│\n",
                         SetForegroundColor(get_color("main")),
-                        " ",
                         SetForegroundColor(Color::DarkGrey),
-                        "|",
                         SetForegroundColor(get_color("theme")),
                         menu_options[i],
                         cursor::MoveToColumn(width)
                     ));
                 }
             } else {
+                let mut spaces = " ";
+                if i >= 11 {
+                    spaces = ""
+                }
                 if i == menu_selected {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{}{} {} {} {} {}{}{}{}",
+                        "│{}{}{}{} › {}  {}{}{}│\n",
                         SetBackgroundColor(get_color("main")),
                         SetForegroundColor(Color::Black),
+                        spaces,
                         i - 1,
-                        "›",
                         menu_options[i],
-                        if menu_options[i] == "macro_hotkey" {
-                            settings.macro_hotkey.to_string() + " "
-                        } else {
-                            " ".to_string()
-                        },
                         SetForegroundColor(get_color("theme")),
                         SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
-                    output.push_str("│\n");
                 } else {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{} {} {}{} {}{}{}│\n",
+                        "│{}{}{}{} | {}{}{}│\n",
                         SetForegroundColor(get_color("main")),
+                        spaces,
                         i - 1,
                         SetForegroundColor(Color::DarkGrey),
-                        "|",
                         SetForegroundColor(get_color("theme")),
                         menu_options[i],
                         cursor::MoveToColumn(width)
@@ -1542,13 +1521,11 @@ fn macro_tool() {
             output.push_str(&render_top("macro_settings", Some(&macro_path), true));
             for i in 0..menu_options.len() {
                 if i == menu_selected {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{}{} {} {} {} {}{}{}{}",
+                        "│{}{} {} › {} {}{}{}{}│\n",
                         SetBackgroundColor(get_color("main")),
                         SetForegroundColor(Color::Black),
                         i,
-                        "›",
                         menu_options[i],
                         if menu_options[i] == "restart_when_pausing" {
                             if settings.macro_restart_when_pausing {
@@ -1571,15 +1548,12 @@ fn macro_tool() {
                         SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
-                    output.push_str("│\n");
                 } else {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{} {} {}{} {}{}{}│\n",
+                        "│{} {} {}| {}{}{}│\n",
                         SetForegroundColor(get_color("main")),
                         i,
                         SetForegroundColor(Color::DarkGrey),
-                        "|",
                         SetForegroundColor(get_color("theme")),
                         menu_options[i],
                         cursor::MoveToColumn(width)
@@ -1706,9 +1680,8 @@ fn macro_tool() {
                 Some("macro_settings"),
                 false,
             ));
-            output.push_str("│");
             output.push_str(&format!(
-                " Status: {}{}{}{}{}{}│\n",
+                "│ Status: {}{}{}{}{}{}│\n",
                 SetBackgroundColor(get_color("main")),
                 SetForegroundColor(Color::Black),
                 is_active,
@@ -1716,11 +1689,9 @@ fn macro_tool() {
                 SetBackgroundColor(Color::Reset),
                 cursor::MoveToColumn(width)
             ));
-            output.push_str("│");
-            output.push_str(&format!("{}│\n", cursor::MoveToColumn(width)));
-            output.push_str("│");
+            output.push_str(&format!("│{}│\n", cursor::MoveToColumn(width)));
             output.push_str(&format!(
-                " Hotkey: {}{}[{}]{}{}{}│\n",
+                "│ Hotkey: {}{}[{}]{}{}{}│\n",
                 SetBackgroundColor(get_color("main")),
                 SetForegroundColor(Color::Black),
                 settings.macro_hotkey,
@@ -2361,13 +2332,11 @@ fn tetris() {
             output.push_str(&render_top("tetris_settings", Some("tetris"), true));
             for i in 0..menu_options.len() {
                 if i == menu_selected {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{}{} {} {} {} {}{}{}{}",
+                        "│{}{} {} › {} {}{}{}{}│\n",
                         SetBackgroundColor(get_color("main")),
                         SetForegroundColor(Color::Black),
                         i,
-                        "›",
                         menu_options[i],
                         if menu_options[i] == "test_setting1" {
                             "test ".to_string()
@@ -2378,15 +2347,12 @@ fn tetris() {
                         SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
-                    output.push_str("│\n");
                 } else {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{} {} {}{} {}{}{}│\n",
+                        "│{} {} {}| {}{}{}│\n",
                         SetForegroundColor(get_color("main")),
                         i,
                         SetForegroundColor(Color::DarkGrey),
-                        "|",
                         SetForegroundColor(get_color("theme")),
                         menu_options[i],
                         cursor::MoveToColumn(width)
@@ -2497,7 +2463,7 @@ fn game_of_life() {
         "| quit: $[esc]$ | change tab: $[a]/[d]$ | pause: $[space]$ | stop: $[ent]$ |",
     );
     let help_more_string_simulating = String::from(
-        r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | move one gen: $[↑/w]/[↓/s]$ | change speed: $[←]/[→]$ |"#,
+        r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | move one gen: $[↑/w]/[↓/s]$ | change delay: $[←]/[→]$ |"#,
     );
     let help_line_count = help_more_string.lines().count() as u16;
     fn render_game_of_life(help_string: &String, help_more_string: &String) {
@@ -2537,13 +2503,11 @@ fn game_of_life() {
             ));
             for i in 0..menu_options.len() {
                 if i == menu_selected {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{}{} {} {} {} {}{}{}{}",
+                        "│{}{} {} › {} {}{}{}{}│\n",
                         SetBackgroundColor(get_color("main")),
                         SetForegroundColor(Color::Black),
                         i,
-                        "›",
                         menu_options[i],
                         if menu_options[i] == "simulate_delay" {
                             settings.game_of_life_simulate_delay.to_string() + "ms "
@@ -2566,15 +2530,12 @@ fn game_of_life() {
                         SetBackgroundColor(Color::Reset),
                         cursor::MoveToColumn(width)
                     ));
-                    output.push_str("│\n");
                 } else {
-                    output.push_str("│");
                     output.push_str(&format!(
-                        "{} {} {}{} {}{}{}│\n",
+                        "│{} {} {}| {}{}{}│\n",
                         SetForegroundColor(get_color("main")),
                         i,
                         SetForegroundColor(Color::DarkGrey),
-                        "|",
                         SetForegroundColor(get_color("theme")),
                         menu_options[i],
                         cursor::MoveToColumn(width)
@@ -2767,12 +2728,13 @@ fn game_of_life() {
     }
     fn render_table(
         table: &Vec<Vec<i32>>,
-        generation: u32,
-        last_speed_render: Instant,
-        speed_changed: bool,
         cursor_row: usize,
         cursor_col: usize,
+        generation: u32,
+        last_delay_render: Instant,
+        delay_changed: bool,
         simulating: bool,
+        paused: bool,
     ) {
         let settings = Settings::load();
         let mut stdout = io::stdout();
@@ -2875,17 +2837,37 @@ fn game_of_life() {
                 );
                 output = new_output;
             }
-            if speed_changed && last_speed_render.elapsed() < Duration::from_millis(500) {
-                let speed_str = format!("│speed {}", settings.game_of_life_simulate_delay);
-                let mut new_output = String::new();
-                new_output.push_str(&speed_str);
-                new_output.push_str(
-                    &output
-                        .chars()
-                        .skip(speed_str.chars().count())
-                        .collect::<String>(),
-                );
-                output = new_output;
+            if paused {
+                let paused_str = format!("paused");
+                if let Some((second_pipe_index, _)) = output.match_indices('│').nth(1) {
+                    let start_index = output[..second_pipe_index]
+                        .char_indices()
+                        .rev()
+                        .nth(paused_str.chars().count() - 1)
+                        .map_or(0, |(i, _)| i);
+                    output = format!(
+                        "{}{}{}",
+                        &output[..start_index],
+                        paused_str,
+                        &output[second_pipe_index..]
+                    );
+                }
+            }
+            if delay_changed && last_delay_render.elapsed() < Duration::from_millis(500) {
+                let delay_str = format!("delay {}", settings.game_of_life_simulate_delay);
+                if let Some((second_pipe_index, _)) = output.match_indices('│').nth(1) {
+                    let start_index = output[..second_pipe_index]
+                        .char_indices()
+                        .rev()
+                        .nth(delay_str.chars().count() - 1)
+                        .map_or(0, |(i, _)| i);
+                    output = format!(
+                        "{}{}{}",
+                        &output[..start_index],
+                        delay_str,
+                        &output[second_pipe_index..]
+                    );
+                }
             }
         }
         execute!(stdout, cursor::MoveTo(0, logo_0_lines as u16 + 2),).unwrap();
@@ -2900,8 +2882,8 @@ fn game_of_life() {
     let mut simulating = false;
     let mut paused = false;
     let mut last_simulate = Instant::now();
-    let mut last_speed_render = Instant::now();
-    let mut speed_changed = false;
+    let mut last_delay_render = Instant::now();
+    let mut delay_changed = false;
     let mut cursor_row = 0;
     let mut cursor_col = 0;
     refresh_table(
@@ -2972,7 +2954,16 @@ fn game_of_life() {
                     }
                     _ => needs_rendering = true,
                 }
-                render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating)
+                render_table(
+                    &table,
+                    cursor_row,
+                    cursor_col,
+                    generation,
+                    last_delay_render,
+                    delay_changed,
+                    simulating,
+                    paused,
+                )
             } else {
                 match pressed_key {
                     KeyCode::Up
@@ -2983,7 +2974,16 @@ fn game_of_life() {
                     | KeyCode::Char('S') => {
                         generation += 1;
                         simulate(&mut table);
-                        render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
+                        render_table(
+                            &table,
+                            cursor_row,
+                            cursor_col,
+                            generation,
+                            last_delay_render,
+                            delay_changed,
+                            simulating,
+                            paused,
+                        );
                         last_simulate = Instant::now();
                     }
                     KeyCode::Left => {
@@ -3002,9 +3002,18 @@ fn game_of_life() {
                                     [game_of_life_simulate_delays.len() - 1],
                             )
                         };
-                        last_speed_render = Instant::now();
-                        speed_changed = true;
-                        render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating)
+                        last_delay_render = Instant::now();
+                        delay_changed = true;
+                        render_table(
+                            &table,
+                            cursor_row,
+                            cursor_col,
+                            generation,
+                            last_delay_render,
+                            delay_changed,
+                            simulating,
+                            paused,
+                        )
                     }
                     KeyCode::Right => {
                         let game_of_life_simulate_delays = [5, 10, 25, 50, 75, 100, 200, 500, 1000];
@@ -3016,11 +3025,32 @@ fn game_of_life() {
                             game_of_life_simulate_delays[(game_of_life_simulate_delay_index + 1)
                                 % game_of_life_simulate_delays.len()],
                         );
-                        last_speed_render = Instant::now();
-                        speed_changed = true;
-                        render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating)
+                        last_delay_render = Instant::now();
+                        delay_changed = true;
+                        render_table(
+                            &table,
+                            cursor_row,
+                            cursor_col,
+                            generation,
+                            last_delay_render,
+                            delay_changed,
+                            simulating,
+                            paused,
+                        )
                     }
-                    KeyCode::Char(' ') => paused = !paused,
+                    KeyCode::Char(' ') => {
+                        paused = !paused;
+                        render_table(
+                            &table,
+                            cursor_row,
+                            cursor_col,
+                            generation,
+                            last_delay_render,
+                            delay_changed,
+                            simulating,
+                            paused,
+                        )
+                    }
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                         needs_rendering = true;
                         game_of_life_settings()
@@ -3047,12 +3077,31 @@ fn game_of_life() {
         {
             generation += 1;
             simulate(&mut table);
-            render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
+            render_table(
+                &table,
+                cursor_row,
+                cursor_col,
+                generation,
+                last_delay_render,
+                delay_changed,
+                simulating,
+                paused,
+            );
             last_simulate = Instant::now();
         }
-        if simulating && speed_changed && last_speed_render.elapsed() >= Duration::from_millis(500) {
-            render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
-            speed_changed = false;
+        if simulating && delay_changed && last_delay_render.elapsed() >= Duration::from_millis(500)
+        {
+            render_table(
+                &table,
+                cursor_row,
+                cursor_col,
+                generation,
+                last_delay_render,
+                delay_changed,
+                simulating,
+                paused,
+            );
+            delay_changed = false;
         }
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
@@ -3072,7 +3121,16 @@ fn game_of_life() {
                 &mut cursor_col,
                 help_line_count,
             );
-            render_table(&table, generation, last_speed_render, speed_changed, cursor_row, cursor_col, simulating);
+            render_table(
+                &table,
+                cursor_row,
+                cursor_col,
+                generation,
+                last_delay_render,
+                delay_changed,
+                simulating,
+                paused,
+            );
             last_render_time = current_time;
             last_width = width;
             last_height = height;
@@ -3544,13 +3602,11 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
     output.push_str(&render_top("settings", None, false));
     for i in 0..menu_options.len() {
         if i == menu_selected {
-            output.push_str("│");
             output.push_str(&format!(
-                "{}{} {} {} {} {}{}{}{}",
+                "│{}{} {} › {} {}{}{}{}│\n",
                 SetBackgroundColor(get_color("main")),
                 SetForegroundColor(Color::Black),
                 i,
-                "›",
                 menu_options[i],
                 if menu_options[i] == "dark_theme" {
                     if settings.dark_theme {
@@ -3587,15 +3643,12 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
                 SetBackgroundColor(Color::Reset),
                 cursor::MoveToColumn(width)
             ));
-            output.push_str("│\n");
         } else {
-            output.push_str("│");
             output.push_str(&format!(
-                "{} {} {}{} {}{}{}│\n",
+                "│{} {} {}| {}{}{}│\n",
                 SetForegroundColor(get_color("main")),
                 i,
                 SetForegroundColor(Color::DarkGrey),
-                "|",
                 SetForegroundColor(get_color("theme")),
                 menu_options[i],
                 cursor::MoveToColumn(width)
@@ -3729,29 +3782,24 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
             spaces = ""
         }
         if i == menu_selected {
-            output.push_str("│");
             output.push_str(&format!(
-                "{}{}{}{} {} {}  {}{}{}",
+                "│{}{}{}{} › {}  {}{}{}│\n",
                 SetForegroundColor(Color::Black),
                 SetBackgroundColor(get_color("main")),
                 spaces,
                 i,
-                "›",
                 menu_options[i],
                 SetForegroundColor(get_color("theme")),
                 SetBackgroundColor(Color::Reset),
                 cursor::MoveToColumn(width)
             ));
-            output.push_str("│\n");
         } else {
-            output.push_str("│");
             output.push_str(&format!(
-                "{}{}{} {}{} {}{}{}│\n",
+                "│{}{}{} {}| {}{}{}│\n",
                 SetForegroundColor(get_color("main")),
                 spaces,
                 i,
                 SetForegroundColor(Color::DarkGrey),
-                "|",
                 SetForegroundColor(get_color("theme")),
                 menu_options[i],
                 cursor::MoveToColumn(width)
