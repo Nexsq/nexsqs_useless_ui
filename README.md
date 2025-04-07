@@ -1,2 +1,7 @@
-# nexsqs_useless_ui
-A completely useless terminal UI originally in chimera powershell, now in rust.
+<details>
+  <summary>📦 Installation</summary>
+
+  To install this project, follow these steps:
+
+
+</details>
