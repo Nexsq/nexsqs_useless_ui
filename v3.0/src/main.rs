@@ -77,7 +77,7 @@ struct Settings {
     micro_macro_delay: u64,
     macro_hotkey: String,
     macro_restart_when_pausing: bool,
-    macro_repeat_once: bool,
+    macro_loop: bool,
     game_of_life_simulate_delay: u64,
     game_of_life_save_input: bool,
     game_of_life_show_generation: bool,
@@ -97,7 +97,7 @@ impl Settings {
             micro_macro_delay: 30000,
             macro_hotkey: "None".to_string(),
             macro_restart_when_pausing: false,
-            macro_repeat_once: false,
+            macro_loop: true,
             game_of_life_simulate_delay: 200,
             game_of_life_save_input: false,
             game_of_life_show_generation: true,
@@ -183,8 +183,8 @@ impl Settings {
         self.macro_restart_when_pausing = new_value;
         self.save();
     }
-    fn set_macro_repeat_once(&mut self, new_value: bool) {
-        self.macro_repeat_once = new_value;
+    fn set_macro_loop(&mut self, new_value: bool) {
+        self.macro_loop = new_value;
         self.save();
     }
     fn set_game_of_life_simulate_delay(&mut self, new_delay: u64) {
@@ -1100,9 +1100,9 @@ fn micro_macro() {
                         SetForegroundColor(Color::Black),
                         i,
                         menu_options[i],
-                        if menu_options[i] == "micro_macro_key" {
+                        if menu_options[i] == "key" {
                             settings.micro_macro_key.to_string() + " "
-                        } else if menu_options[i] == "micro_macro_delay" {
+                        } else if menu_options[i] == "delay" {
                             let delay = settings.micro_macro_delay as usize;
                             let (display_delay, delay_unit) = if delay <= 1000 {
                                 (delay, "ms")
@@ -1112,7 +1112,7 @@ fn micro_macro() {
                                 (delay / 1000, "s")
                             };
                             format!("{}{} ", display_delay, delay_unit)
-                        } else if menu_options[i] == "micro_macro_hotkey" {
+                        } else if menu_options[i] == "hotkey" {
                             settings.micro_macro_hotkey.to_string() + " "
                         } else {
                             " ".to_string()
@@ -1145,10 +1145,10 @@ fn micro_macro() {
             stdout.flush().unwrap();
         }
         let micro_macro_settings_menu_options = [
-            "micro_macro_key",
-            "micro_macro_delay",
-            "custom_micro_macro_delay",
-            "micro_macro_hotkey",
+            "key",
+            "delay",
+            "custom_delay",
+            "hotkey",
         ];
         let mut micro_macro_settings_menu_selected = 0;
         let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
@@ -1432,7 +1432,7 @@ fn macro_tool() {
             "| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | select: $[ent]$ |",
         );
         let help_more_string = String::from(
-            r#"| change setting: $[ent]$ | select: $[0-9]$ | edit: $[space]$ | delete: $[del]/[backspace]$ |
+            r#"| select: $[0-9]$ | edit: $[space]$ | delete: $[del]/[backspace]$ |
 | return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
         );
         let (width, _) = terminal::size().unwrap();
@@ -1527,19 +1527,19 @@ fn macro_tool() {
                         SetForegroundColor(Color::Black),
                         i,
                         menu_options[i],
-                        if menu_options[i] == "restart_when_pausing" {
+                        if menu_options[i] == "loop" {
+                            if settings.macro_loop {
+                                "1 ".to_string()
+                            } else {
+                                "0 ".to_string()
+                            }
+                        } else if menu_options[i] == "restart_when_pausing" {
                             if settings.macro_restart_when_pausing {
                                 "1 ".to_string()
                             } else {
                                 "0 ".to_string()
                             }
-                        } else if menu_options[i] == "repeat_once" {
-                            if settings.macro_repeat_once {
-                                "1 ".to_string()
-                            } else {
-                                "0 ".to_string()
-                            }
-                        } else if menu_options[i] == "macro_hotkey" {
+                        } else if menu_options[i] == "hotkey" {
                             settings.macro_hotkey.to_string() + " "
                         } else {
                             " ".to_string()
@@ -1571,7 +1571,7 @@ fn macro_tool() {
             execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
-        let macro_settings_menu_options = ["restart_when_pausing", "repeat_once", "macro_hotkey"];
+        let macro_settings_menu_options = ["loop", "restart_when_pausing", "hotkey"];
         let mut macro_settings_menu_selected = 0;
         let macro_hotkeys = [
             "None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse",
@@ -1595,9 +1595,9 @@ fn macro_tool() {
                         }
                     }
                     KeyCode::Left => match macro_settings_menu_selected {
-                        0 => settings
+                        0 => settings.set_macro_loop(!settings.macro_loop),
+                        1 => settings
                             .set_macro_restart_when_pausing(!settings.macro_restart_when_pausing),
-                        1 => settings.set_macro_repeat_once(!settings.macro_repeat_once),
                         2 => {
                             if macro_hotkey_index > 0 {
                                 settings.set_macro_hotkey(macro_hotkeys[macro_hotkey_index - 1])
@@ -1620,9 +1620,9 @@ fn macro_tool() {
                         }
                     }
                     KeyCode::Right | KeyCode::Enter => match macro_settings_menu_selected {
-                        0 => settings
+                        0 => settings.set_macro_loop(!settings.macro_loop),
+                        1 => settings
                             .set_macro_restart_when_pausing(!settings.macro_restart_when_pausing),
-                        1 => settings.set_macro_repeat_once(!settings.macro_repeat_once),
                         2 => {
                             settings.set_macro_hotkey(
                                 macro_hotkeys[(macro_hotkey_index + 1) % macro_hotkeys.len()],
@@ -1918,7 +1918,7 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_click" || cmd == "mouse" => {
+                            Some(ref cmd) if cmd == "mouse_click" || cmd == "mouseclick" || cmd == "mouse" => {
                                 if let Some(button_str) = command_parts.get(1) {
                                     match button_str.to_lowercase().as_str() {
                                         "left" | "LMB" => {
@@ -1953,7 +1953,7 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_press" || cmd == "mouse_hold" => {
+                            Some(ref cmd) if cmd == "mouse_press" || cmd == "mousepress" || cmd == "mouse_hold" || cmd == "mousehold" => {
                                 if let Some(button_str) = command_parts.get(1) {
                                     match button_str.to_lowercase().as_str() {
                                         "left" | "LMB" => {
@@ -1988,7 +1988,7 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_release" => {
+                            Some(ref cmd) if cmd == "mouse_release" || cmd == "mouserelease" => {
                                 if let Some(button_str) = command_parts.get(1) {
                                     match button_str.to_lowercase().as_str() {
                                         "left" | "LMB" => {
@@ -2023,7 +2023,7 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_scroll" || cmd == "scroll" => {
+                            Some(ref cmd) if cmd == "mouse_scroll" || cmd == "mousescroll" || cmd == "scroll" => {
                                 if let Some(length_str) = command_parts.get(1) {
                                     if let Ok(length) = length_str.parse::<i32>() {
                                         enigo.scroll(length, enigo::Axis::Vertical).ok();
@@ -2036,7 +2036,7 @@ fn macro_tool() {
                                 }
                             }
                             Some(ref cmd)
-                                if cmd == "mouse_move" || cmd == "move" || cmd == "move_to" =>
+                                if cmd == "mouse_move" || cmd == "mousemove" || cmd == "move" || cmd == "move_to" || cmd == "moveto" =>
                             {
                                 if let Some(x_str) = command_parts.get(1) {
                                     if let Some(y_str) = command_parts.get(2) {
@@ -2135,7 +2135,7 @@ fn macro_tool() {
                         current_line += 1
                     } else {
                         current_line = 0;
-                        if settings.macro_repeat_once {
+                        if !settings.macro_loop {
                             macro_active = false;
                         }
                     }
@@ -2226,7 +2226,7 @@ fn macro_tool() {
                             }
                         }
                     }
-                },
+                }
                 KeyCode::Enter => match macro_menu_selected {
                     0 => {
                         execute!(stdout, cursor::MoveUp(1)).unwrap();
@@ -2255,7 +2255,7 @@ fn macro_tool() {
                         macro_tool()
                     }
                     _ => macro_tool_macro(&macro_menu_options[macro_menu_selected], &macros_dir),
-                },
+                }
                 KeyCode::Char(c) if c == ' ' => match macro_menu_selected {
                     0 => {}
                     _ => {
@@ -2268,7 +2268,7 @@ fn macro_tool() {
                             }
                         }
                     }
-                },
+                }
                 KeyCode::Char(c) if c.is_digit(10) => {
                     let num = c.to_digit(10).unwrap() as usize;
                     if num < macro_menu_options.len() {
