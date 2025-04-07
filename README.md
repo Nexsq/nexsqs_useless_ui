@@ -181,4 +181,8 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_click right                        </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br></h6></details>
+  <h4>&nbsp;• tetris</h4>
+    <span>&nbsp;&nbsp;&nbsp;find out yourself ;)</span>
+  <h4>&nbsp;• game_of_life</h4>
+    <span>&nbsp;&nbsp;&nbsp;find out yourself ;)</span>
 </details>
