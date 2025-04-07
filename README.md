@@ -26,7 +26,7 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n--</code><i> (decrements the n variable by one)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>loop &lt;times&gt;</code><i> (put at the end of the macro to determine how many times it will replay)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>&lt;any other symbol or some keys&gt;</code><i> (simulates a click of that symbol or that key)</i><br>
-    &nbsp;&nbsp;&nbsp;example NUUI_MacroConfig.txt:<br></span>
+    <details><summary>example NUUI_MacroConfig.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>sleep 1000    </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>N             </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>U             </code><br>
@@ -56,7 +56,7 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>@             </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>#             </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>$             </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>loop 10       </code><br></h6>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>loop 10       </code><br></h6></details>
   <h4>&nbsp;• micro_macro</h4>
     <span>&nbsp;&nbsp;&nbsp;simulates a click of settings.micro_macro_key every settings.micro_macro_delay</span>
   <h4>&nbsp;• quick_start</h4>
@@ -94,7 +94,7 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n--</code><i> (decrements the n variable by one)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>loop &lt;times&gt;</code><i> (put at the end of the macro to determine how many times it will replay)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>&lt;any other symbol or some keys&gt;</code><i> (simulates a click of that symbol or that key)</i></span>
-    &nbsp;&nbsp;&nbsp;example NUUI_MacroConfig.txt:<br></span>
+    <details><summary>example NUUI_MacroConfig.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>sleep 1000    </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>N             </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>U             </code><br>
@@ -124,7 +124,7 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>@             </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>#             </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>$             </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>loop 10       </code><br></h6>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>loop 10       </code><br></h6></details>
   <h4>&nbsp;• quick_start</h4>
     <span>&nbsp;&nbsp;&nbsp;on the first launch, it creates a "NUUI_QuickStartFolder" folder in the working directory<br>
     &nbsp;&nbsp;&nbsp;if the folder "NUUI_QuickStartFolder" is found, opens all files in that folder</span>
@@ -145,15 +145,16 @@
     <span>&nbsp;&nbsp;&nbsp;simulates a click of settings.micro_macro_key every settings.micro_macro_delay</br>
     &nbsp;&nbsp;&nbsp;can also set a hotkey<i> (settings.micro_macro_hotkey)</i> </span>
   <h4>&nbsp;• macro</h4>
-    <span>&nbsp;&nbsp;&nbsp;on the first launch, it creates a "NUUI_MacroConfig.txt" file in the working directory<br>
-    &nbsp;&nbsp;&nbsp;if the file "NUUI_MacroConfig.txt" is found, reads and executes valid commands:<br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>sleep &lt;milliseconds&gt;</code><i> (sleeps for a given duration)</i><br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Enter</code><i> (simulates a click of enter)</i><br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Space</code><i> (simulates a click of space)</i><br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>RanNum</code><i> (simulates a click of a random number in range 0-9)</i><br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n?</code><i> (simulates a click of the current value of the variable n)</i><br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n++</code><i> (increments the n variable by one)</i><br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n--</code><i> (decrements the n variable by one)</i><br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>loop &lt;times&gt;</code><i> (put at the end of the macro to determine how many times it will replay)</i><br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>&lt;any other symbol&gt;</code><i> (simulates a click of that symbol)</i></span>
+    <span>&nbsp;&nbsp;&nbsp;allows to create macros in txt format saved in the NUUI_config\Macros\* directory<br>
+    &nbsp;&nbsp;&nbsp;can also set a hotkey<i> (settings.macro_hotkey)</i> </span>
+    &nbsp;&nbsp;&nbsp;valid macro commands:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code># &lt;comment&gt;</code><i> (comments will be printed in a different color in the console)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Enter</code><i> (simulates a click of enter)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Space</code><i> (simulates a click of space)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>RanNum</code><i> (simulates a click of a random number in range 0-9)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n?</code><i> (simulates a click of the current value of the variable n)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n++</code><i> (increments the n variable by one)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n--</code><i> (decrements the n variable by one)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>loop &lt;times&gt;</code><i> (put at the end of the macro to determine how many times it will replay)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>&lt;any other symbol&gt;</code><i> (simulates a click of that symbol)</i></span>
 </details>
