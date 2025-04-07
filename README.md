@@ -18,15 +18,15 @@
     <span>&nbsp;&nbsp;&nbsp;on the first launch, it creates a "NUUI_MacroConfig.txt" file in the working directory<br>
     &nbsp;&nbsp;&nbsp;if the file "NUUI_MacroConfig.txt" is found, reads and executes valid commands:<br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>sleep &lt;milliseconds&gt;</code><i> (sleeps for a given duration)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Enter</code><i> (simulates a click of enter)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Space</code><i> (simulates a click of space)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Enter</code><i> (simulates an enter click)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Space</code><i> (simulates a space click)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>RandomNum</code><i> (simulates a click of a random number in range 0-9)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n?</code><i> (simulates a click of the current value of the variable n)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n++</code><i> (increments the n variable by one)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n--</code><i> (decrements the n variable by one)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>loop &lt;times&gt;</code><i> (put at the end of the macro to determine how many times it will replay)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>&lt;any other symbol or some keys&gt;</code><i> (simulates a click of that symbol or that key)</i><br>
-    <details><summary>example NUUI_MacroConfig.txt:</span></summary><br>
+    <details><summary><span>example NUUI_MacroConfig.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>sleep 1000    </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>N             </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>U             </code><br>
@@ -86,15 +86,15 @@
     <span>&nbsp;&nbsp;&nbsp;on the first launch, it creates a "NUUI_MacroConfig.txt" file in the working directory<br>
     &nbsp;&nbsp;&nbsp;if the file "NUUI_MacroConfig.txt" is found, reads and executes valid commands:<br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>sleep &lt;milliseconds&gt;</code><i> (sleeps for a given duration)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Enter</code><i> (simulates a click of enter)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Space</code><i> (simulates a click of space)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Enter</code><i> (simulates an enter click)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Space</code><i> (simulates a space click)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>RanNum</code><i> (simulates a click of a random number in range 0-9)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n?</code><i> (simulates a click of the current value of the variable n)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n++</code><i> (increments the n variable by one)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n--</code><i> (decrements the n variable by one)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>loop &lt;times&gt;</code><i> (put at the end of the macro to determine how many times it will replay)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>&lt;any other symbol or some keys&gt;</code><i> (simulates a click of that symbol or that key)</i></span>
-    <details><summary>example NUUI_MacroConfig.txt:</span></summary><br>
+    <details><summary><span>example NUUI_MacroConfig.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>sleep 1000    </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>N             </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>U             </code><br>
@@ -146,15 +146,39 @@
     &nbsp;&nbsp;&nbsp;can also set a hotkey<i> (settings.micro_macro_hotkey)</i> </span>
   <h4>&nbsp;• macro</h4>
     <span>&nbsp;&nbsp;&nbsp;allows to create macros in txt format saved in the NUUI_config\Macros\* directory<br>
-    &nbsp;&nbsp;&nbsp;can also set a hotkey<i> (settings.macro_hotkey)</i> </span>
+    &nbsp;&nbsp;&nbsp;the macro will loop depending on settings.macro_loop<br>
+    &nbsp;&nbsp;&nbsp;can also set a hotkey<i> (settings.macro_hotkey)</i><br>
     &nbsp;&nbsp;&nbsp;valid macro commands:<br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code># &lt;comment&gt;</code><i> (comments will be printed in a different color in the console)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Enter</code><i> (simulates a click of enter)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>Space</code><i> (simulates a click of space)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>RanNum</code><i> (simulates a click of a random number in range 0-9)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n?</code><i> (simulates a click of the current value of the variable n)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n++</code><i> (increments the n variable by one)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>n--</code><i> (decrements the n variable by one)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>loop &lt;times&gt;</code><i> (put at the end of the macro to determine how many times it will replay)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>&lt;any other symbol&gt;</code><i> (simulates a click of that symbol)</i></span>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>delay &lt;milliseconds&gt;</code><i> (sleeps for a given duration)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>click &lt;key&gt;</code><i> (clicks a given key)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>press &lt;key&gt;</code><i> (keeps a given key pressed)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>release &lt;key&gt;</code><i> (releases a given key)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_click &lt;mouse key&gt;</code><i> (clicks a given mouse key)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>muse_press &lt;mouse key&gt;</code><i> (keeps a given mouse key pressed)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>muse_release &lt;mouse key&gt;</code><i> (releases a given mouse key)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>muse_move &lt;x y&gt;</code><i> (moves cursor to the given coordinates)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i><</span>
+  <details><summary><span>example macro.txt:</span></summary><br>
+      <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># add comments                           </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># paste text:                            </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>press ctrl                               </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>click v                                  </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>release ctrl                             </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># use string to print text               </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>string text was pasted                   </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 5000                               </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># do things with mouse                   </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_press left                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># absolute coordinates (not relative)    </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_move 1000 500                      </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_release left                       </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_click right                        </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br></h6></details>
 </details>
