@@ -78,6 +78,9 @@ struct Settings {
     macro_hotkey: String,
     macro_restart_when_pausing: bool,
     macro_loop: bool,
+    tetris_use_colors: bool,
+    tetris_show_ghost: bool,
+    tetris_speed_multiplier: f64,
     game_of_life_simulate_delay: u64,
     game_of_life_save_input: bool,
     game_of_life_show_generation: bool,
@@ -98,6 +101,9 @@ impl Settings {
             macro_hotkey: "None".to_string(),
             macro_restart_when_pausing: false,
             macro_loop: true,
+            tetris_use_colors: false,
+            tetris_show_ghost: true,
+            tetris_speed_multiplier: 1.0,
             game_of_life_simulate_delay: 200,
             game_of_life_save_input: false,
             game_of_life_show_generation: true,
@@ -185,6 +191,18 @@ impl Settings {
     }
     fn set_macro_loop(&mut self, new_value: bool) {
         self.macro_loop = new_value;
+        self.save();
+    }
+    fn set_tetris_use_colors(&mut self, new_value: bool) {
+        self.tetris_use_colors = new_value;
+        self.save();
+    }
+    fn set_tetris_show_ghost(&mut self, new_value: bool) {
+        self.tetris_show_ghost = new_value;
+        self.save();
+    }
+    fn set_tetris_speed_multiplier(&mut self, new_multiplier: f64) {
+        self.tetris_speed_multiplier = new_multiplier.clamp(0.0, f64::MAX);
         self.save();
     }
     fn set_game_of_life_simulate_delay(&mut self, new_delay: u64) {
@@ -689,7 +707,7 @@ fn ping_tool() {
         if last_ping.elapsed() >= Duration::from_millis(settings.ping_delay) {
             match ping(ip) {
                 Some((ms, ttl)) => {
-                    let ping_status = format!("Ping: {:.0} ms (seq={}, ttl={})", ms, ping_seq, ttl);
+                    let ping_status = format!("Ping: {:.0} ms (seq={} ttl={})", ms, ping_seq, ttl);
                     add_ping(&mut pings, ping_status, help_line_count);
                 }
                 None => {
@@ -1144,12 +1162,7 @@ fn micro_macro() {
             execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
-        let micro_macro_settings_menu_options = [
-            "key",
-            "delay",
-            "custom_delay",
-            "hotkey",
-        ];
+        let micro_macro_settings_menu_options = ["key", "delay", "custom_delay", "hotkey"];
         let mut micro_macro_settings_menu_selected = 0;
         let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
         let mut micro_macro_key_index = micro_macro_keys
@@ -1918,7 +1931,11 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_click" || cmd == "mouseclick" || cmd == "mouse" => {
+                            Some(ref cmd)
+                                if cmd == "mouse_click"
+                                    || cmd == "mouseclick"
+                                    || cmd == "mouse" =>
+                            {
                                 if let Some(button_str) = command_parts.get(1) {
                                     match button_str.to_lowercase().as_str() {
                                         "left" | "LMB" => {
@@ -1953,7 +1970,12 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_press" || cmd == "mousepress" || cmd == "mouse_hold" || cmd == "mousehold" => {
+                            Some(ref cmd)
+                                if cmd == "mouse_press"
+                                    || cmd == "mousepress"
+                                    || cmd == "mouse_hold"
+                                    || cmd == "mousehold" =>
+                            {
                                 if let Some(button_str) = command_parts.get(1) {
                                     match button_str.to_lowercase().as_str() {
                                         "left" | "LMB" => {
@@ -2023,7 +2045,11 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_scroll" || cmd == "mousescroll" || cmd == "scroll" => {
+                            Some(ref cmd)
+                                if cmd == "mouse_scroll"
+                                    || cmd == "mousescroll"
+                                    || cmd == "scroll" =>
+                            {
                                 if let Some(length_str) = command_parts.get(1) {
                                     if let Ok(length) = length_str.parse::<i32>() {
                                         enigo.scroll(length, enigo::Axis::Vertical).ok();
@@ -2036,7 +2062,11 @@ fn macro_tool() {
                                 }
                             }
                             Some(ref cmd)
-                                if cmd == "mouse_move" || cmd == "mousemove" || cmd == "move" || cmd == "move_to" || cmd == "moveto" =>
+                                if cmd == "mouse_move"
+                                    || cmd == "mousemove"
+                                    || cmd == "move"
+                                    || cmd == "move_to"
+                                    || cmd == "moveto" =>
                             {
                                 if let Some(x_str) = command_parts.get(1) {
                                     if let Some(y_str) = command_parts.get(2) {
@@ -2226,7 +2256,7 @@ fn macro_tool() {
                             }
                         }
                     }
-                }
+                },
                 KeyCode::Enter => match macro_menu_selected {
                     0 => {
                         execute!(stdout, cursor::MoveUp(1)).unwrap();
@@ -2255,7 +2285,7 @@ fn macro_tool() {
                         macro_tool()
                     }
                     _ => macro_tool_macro(&macro_menu_options[macro_menu_selected], &macros_dir),
-                }
+                },
                 KeyCode::Char(c) if c == ' ' => match macro_menu_selected {
                     0 => {}
                     _ => {
@@ -2268,7 +2298,7 @@ fn macro_tool() {
                             }
                         }
                     }
-                }
+                },
                 KeyCode::Char(c) if c.is_digit(10) => {
                     let num = c.to_digit(10).unwrap() as usize;
                     if num < macro_menu_options.len() {
@@ -2308,8 +2338,12 @@ fn macro_tool() {
 fn tetris() {
     fn render_tetris() {
         let mut stdout = io::stdout();
-        let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ |");
-        let help_more_string = String::from(r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ |"#);
+        let help_string = String::from(
+            "| quit: $[esc]$ | change tab: $[a]/[d]$ | move: $[←]/[→]/[↓/s]$ | rotate: $[↑/w]$ |",
+        );
+        let help_more_string = String::from(
+            r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | drop: $[space]$ | hold: $[c]$ |"#,
+        );
         let mut output = String::new();
         output.push_str(&render_top("tetris", Some("tetris_settings"), false));
         output.push_str(&render_bottom(0, help_string, help_more_string));
@@ -2320,7 +2354,9 @@ fn tetris() {
         stdout.flush().unwrap();
     }
     fn tetris_settings() {
+        let mut settings = Settings::load();
         fn render_tetris_settings(menu_selected: usize, menu_options: &[&str]) {
+            let settings = Settings::load();
             let mut stdout = io::stdout();
             let help_string = String::from("| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | change setting: $[←]/[→]$ |");
             let help_more_string = String::from(
@@ -2338,8 +2374,20 @@ fn tetris() {
                         SetForegroundColor(Color::Black),
                         i,
                         menu_options[i],
-                        if menu_options[i] == "test_setting1" {
-                            "test ".to_string()
+                        if menu_options[i] == "use_colors" {
+                            if settings.tetris_use_colors {
+                                "1 ".to_string()
+                            } else {
+                                "0 ".to_string()
+                            }
+                        } else if menu_options[i] == "show_ghost" {
+                            if settings.tetris_show_ghost {
+                                "1 ".to_string()
+                            } else {
+                                "0 ".to_string()
+                            }
+                        } else if menu_options[i] == "speed_multiplier" {
+                            settings.tetris_speed_multiplier.to_string() + " "
                         } else {
                             " ".to_string()
                         },
@@ -2359,15 +2407,20 @@ fn tetris() {
                     ));
                 }
             }
-            output.push_str(&render_bottom(2, help_string, help_more_string));
+            output.push_str(&render_bottom(menu_options.len() as u16, help_string, help_more_string));
             execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
             clear();
             print!("{}", output);
             execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
-        let tetris_settings_menu_options = ["test_setting1", "test_setting2"];
+        let tetris_settings_menu_options = ["use_colors", "show_ghost", "speed_multiplier"];
         let mut tetris_settings_menu_selected = 0;
+        let tetris_speed_multipliers = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+        let mut tetris_speed_multiplier_index = tetris_speed_multipliers
+            .iter()
+            .position(|&c| c == settings.tetris_speed_multiplier)
+            .unwrap_or(0);
         let mut last_render_time = get_time();
         let (mut last_width, mut last_height) = terminal::size().unwrap();
         let mut needs_rendering = true;
@@ -2382,7 +2435,27 @@ fn tetris() {
                             tetris_settings_menu_selected = tetris_settings_menu_options.len() - 1
                         }
                     }
-                    KeyCode::Left => {}
+                    KeyCode::Left => match tetris_settings_menu_selected {
+                        0 => settings.set_tetris_use_colors(!settings.tetris_use_colors),
+                        1 => settings.set_tetris_show_ghost(!settings.tetris_show_ghost),
+                        2 => {
+                            if tetris_speed_multiplier_index > 0 {
+                                settings.set_tetris_speed_multiplier(
+                                    tetris_speed_multipliers[tetris_speed_multiplier_index - 1],
+                                )
+                            } else {
+                                settings.set_tetris_speed_multiplier(
+                                    tetris_speed_multipliers[tetris_speed_multipliers.len() - 1],
+                                )
+                            };
+                            if tetris_speed_multiplier_index > 0 {
+                                tetris_speed_multiplier_index -= 1
+                            } else {
+                                tetris_speed_multiplier_index = tetris_speed_multipliers.len() - 1
+                            }
+                        }
+                        _ => {}
+                    },
                     KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
                         if tetris_settings_menu_selected < tetris_settings_menu_options.len() - 1 {
                             tetris_settings_menu_selected += 1
@@ -2390,7 +2463,19 @@ fn tetris() {
                             tetris_settings_menu_selected = 0
                         }
                     }
-                    KeyCode::Right => {}
+                    KeyCode::Right | KeyCode::Enter => match tetris_settings_menu_selected {
+                        0 => settings.set_tetris_use_colors(!settings.tetris_use_colors),
+                        1 => settings.set_tetris_show_ghost(!settings.tetris_show_ghost),
+                        2 => {
+                            settings.set_tetris_speed_multiplier(
+                                tetris_speed_multipliers[(tetris_speed_multiplier_index + 1)
+                                    % tetris_speed_multipliers.len()],
+                            );
+                            tetris_speed_multiplier_index =
+                                (tetris_speed_multiplier_index + 1) % tetris_speed_multipliers.len()
+                        }
+                        _ => {}
+                    },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                     KeyCode::Char('q') | KeyCode::Char('Q') => return,
@@ -2422,19 +2507,396 @@ fn tetris() {
             }
         }
     }
+    fn print_table(
+        mut table: Vec<Vec<u8>>,
+        hold_piece: &Option<Tetromino>,
+        next_piece: &Tetromino,
+        current_piece: &Tetromino,
+    ) {
+        let settings = Settings::load();
+        let (logo_0, _, _) = logo();
+        let logo_0_lines: Vec<&str> = logo_0.lines().collect();
+        let mut output = String::new();
+        output.push_str(&format!("{}", cursor::MoveTo(0, logo_0_lines.len() as u16 + 2)));
+        clear_piece_from_board(&mut table, current_piece);
+        place_ghost_piece_on_board(&mut table, current_piece);
+        place_piece_on_board(&mut table, current_piece);
+        for (y, row) in table.iter().enumerate() {
+            output.push_str("│|");
+            if settings.tetris_use_colors {
+                let mut last_color: Option<Color> = None;
+                for &cell in row.iter() {
+                    let color = match cell {
+                        1 => Some(Color::DarkCyan),
+                        2 => Some(Color::DarkYellow),
+                        3 => Some(Color::DarkMagenta),
+                        4 => Some(Color::DarkBlue),
+                        5 => Some(Color::Blue),
+                        6 => Some(Color::DarkGreen),
+                        7 => Some(Color::DarkRed),
+                        _ => Some(get_color("theme")),
+                    };
+                    if color != last_color {
+                        output.push_str(&format!("{}", SetForegroundColor(color.unwrap())));
+                        last_color = color;
+                    }
+                    match cell {
+                        0 => output.push_str("  "),
+                        9 => output.push_str("▒▒"),
+                        _ => output.push_str("██"),
+                    }
+                }
+                output.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
+            } else {
+                for (x, &cell) in row.iter().enumerate() {
+                    let is_current_piece_block = current_piece.shape.iter().any(|(dx, dy)| {
+                        let px = current_piece.x + dx;
+                        let py = current_piece.y + dy;
+                        px == x as i32 && py == y as i32
+                    });
+                    if is_current_piece_block {
+                        output.push_str(&format!("{}", SetForegroundColor(get_color("main"))));
+                    }
+                    match cell {
+                        0 => output.push_str("  "),
+                        9 => output.push_str("▒▒"),
+                        _ => output.push_str("██"),
+                    }
+                    if is_current_piece_block {
+                        output.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
+                    }
+                }
+            }
+            output.push('\n');
+        }
+        println!("\nHold:");
+        if let Some(held) = &hold_piece {
+            for y in 0..4 {
+                for x in 0..4 {
+                    if held.shape.iter().any(|(dx, dy)| *dx == x && *dy == y) {
+                        print!("██");
+                    } else {
+                        print!("  ");
+                    }
+                }
+                println!();
+            }
+        } else {
+            println!("(empty)");
+        }
+        println!("\nNext:");
+        for y in 0..4 {
+            for x in 0..4 {
+                if next_piece.shape.iter().any(|(dx, dy)| *dx == x && *dy == y) {
+                    print!("██");
+                } else {
+                    print!("  ");
+                }
+            }
+            println!();
+        }
+        print!("{}", output);
+    }
+    #[derive(Clone)]
+    struct Tetromino {
+        shape: Vec<(i32, i32)>,
+        pivot: (i32, i32),
+        x: i32,
+        y: i32,
+        color: u8,
+    }
+    impl Tetromino {
+        fn new(shape: Vec<(i32, i32)>, pivot: (i32, i32), color: u8) -> Self {
+            Self {
+                shape,
+                pivot,
+                x: 4,
+                y: 0,
+                color,
+            }
+        }
+        fn with_position(mut self, x: i32, y: i32) -> Self {
+            self.x = x;
+            self.y = y;
+            self
+        }
+        fn rotate(&mut self) {
+            if self.color == 2 {
+                return;
+            }
+            let (px, py) = self.pivot;
+            self.shape = self
+                .shape
+                .iter()
+                .map(|&(x, y)| {
+                    let rel_x = x - px;
+                    let rel_y = y - py;
+                    let rot_x = -rel_y;
+                    let rot_y = rel_x;
+                    (rot_x + px, rot_y + py)
+                })
+                .collect();
+        }
+    }
+    fn spawn_piece() -> Tetromino {
+        let (shape, pivot, color, spawn_y) = match rand::random::<usize>() % 7 {
+            0 => (vec![(0, 1), (1, 1), (2, 1), (3, 1)], (1, 1), 1, 0),
+            1 => (vec![(0, 0), (1, 0), (0, 1), (1, 1)], (0, 0), 2, 0),
+            2 => (vec![(0, 0), (1, 0), (2, 0), (1, 1)], (1, 0), 3, 0),
+            3 => (vec![(0, 0), (1, 0), (2, 0), (2, 1)], (1, 0), 4, 0),
+            4 => (vec![(0, 0), (1, 0), (2, 0), (0, 1)], (1, 0), 5, 0),
+            5 => (vec![(1, 0), (2, 0), (0, 1), (1, 1)], (1, 1), 6, 0),
+            _ => (vec![(0, 0), (1, 0), (1, 1), (2, 1)], (1, 1), 7, 0),
+        };
+        Tetromino::new(shape, pivot, color).with_position(4 - pivot.0, spawn_y - pivot.1)
+    }
+    fn place_ghost_piece_on_board(table: &mut Vec<Vec<u8>>, piece: &Tetromino) {
+        let mut ghost = piece.clone();
+        for row in table.iter_mut() {
+            for cell in row.iter_mut() {
+                if *cell == 9 {
+                    *cell = 0;
+                }
+            }
+        }
+        while can_move(&ghost, table, 0, 1) {
+            ghost.y += 1;
+        }
+        for &(dx, dy) in &ghost.shape {
+            let x = ghost.x + dx;
+            let y = ghost.y + dy;
+            if y >= 0 && y < table.len() as i32 && x >= 0 && x < table[0].len() as i32 {
+                let ux = x as usize;
+                let uy = y as usize;
+                if table[uy][ux] == 0 {
+                    table[uy][ux] = 9;
+                }
+            }
+        }
+    }
+    fn place_piece_on_board(table: &mut Vec<Vec<u8>>, piece: &Tetromino) {
+        for &(dx, dy) in &piece.shape {
+            let x_pos = (piece.x + dx) as usize;
+            let y_pos = (piece.y + dy) as usize;
+            if x_pos < table[0].len() && y_pos < table.len() {
+                table[y_pos][x_pos] = piece.color;
+            }
+        }
+    }
+    fn clear_piece_from_board(table: &mut Vec<Vec<u8>>, piece: &Tetromino) {
+        for &(dx, dy) in &piece.shape {
+            let x = (piece.x + dx) as usize;
+            let y = (piece.y + dy) as usize;
+            if x < table[0].len() && y < table.len() {
+                table[y][x] = 0;
+            }
+        }
+    }
+    fn lock_piece(piece: &Tetromino, table: &mut Vec<Vec<u8>>) {
+        for &(dx, dy) in &piece.shape {
+            let x = (piece.x + dx) as usize;
+            let y = (piece.y + dy) as usize;
+            table[y][x] = piece.color;
+        }
+    }
+    fn clear_lines(table: &mut Vec<Vec<u8>>) {
+        let mut new_table: Vec<Vec<u8>> = Vec::new();
+        for row in table.iter() {
+            if row.iter().all(|&cell| cell != 0) {
+                continue;
+            }
+            new_table.push(row.clone());
+        }
+        while new_table.len() < 20 {
+            new_table.insert(0, vec![0; 10]);
+        }
+        *table = new_table;
+    }
+    fn can_move(piece: &Tetromino, table: &Vec<Vec<u8>>, dx: i32, dy: i32) -> bool {
+        for &(bx, by) in &piece.shape {
+            let new_x = piece.x + bx + dx;
+            let new_y = piece.y + by + dy;
+            if new_x < 0 || new_x >= table[0].len() as i32 {
+                return false;
+            }
+            if new_y >= table.len() as i32 {
+                return false;
+            }
+            if new_y >= 0 {
+                let cell = table[new_y as usize][new_x as usize];
+                if cell != 0 && cell != 9 {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+    fn move_piece_right(piece: &mut Tetromino, table: &mut Vec<Vec<u8>>) {
+        clear_piece_from_board(table, piece);
+        if can_move(piece, table, 1, 0) {
+            piece.x += 1;
+        }
+        place_piece_on_board(table, piece);
+    }
+    fn move_piece_left(piece: &mut Tetromino, table: &mut Vec<Vec<u8>>) {
+        clear_piece_from_board(table, piece);
+        if can_move(piece, table, -1, 0) {
+            piece.x -= 1;
+        }
+        place_piece_on_board(table, piece);
+    }
+    fn move_piece_down(piece: &mut Tetromino, table: &mut Vec<Vec<u8>>) -> bool {
+        clear_piece_from_board(table, piece);
+        if can_move(piece, table, 0, 1) {
+            piece.y += 1;
+            place_piece_on_board(table, piece);
+            return true;
+        } else {
+            lock_piece(piece, table);
+            return false;
+        }
+    }
+    fn rotate_piece(piece: &mut Tetromino, table: &mut Vec<Vec<u8>>) {
+        let original_shape = piece.shape.clone();
+        let original_x = piece.x;
+        let original_y = piece.y;
+        clear_piece_from_board(table, piece);
+        piece.rotate();
+        let kicks = [(0, 0), (-1, 0), (1, 0), (0, -1), (0, -2), (-2, 0), (2, 0)];
+        for (dx, dy) in kicks {
+            if can_move(piece, table, dx, dy) {
+                piece.x += dx;
+                piece.y += dy;
+                place_piece_on_board(table, piece);
+                return;
+            }
+        }
+        piece.shape = original_shape;
+        piece.x = original_x;
+        piece.y = original_y;
+        place_piece_on_board(table, piece);
+    }
+    fn is_game_over(piece: &Tetromino, table: &Vec<Vec<u8>>) -> bool {
+        for (dx, dy) in &piece.shape {
+            let x = piece.x + dx;
+            let y = piece.y + dy;
+            if y < 0 {
+                continue;
+            }
+            if y as usize >= table.len() || x < 0 || x as usize >= table[0].len() {
+                return true;
+            }
+            if table[y as usize][x as usize] != 0 {
+                return true;
+            }
+        }
+        false
+    }
+    let mut table: Vec<Vec<u8>> = vec![vec![0; 10]; 20];
+    let mut current_piece = spawn_piece();
+    place_piece_on_board(&mut table, &current_piece);
+    let mut hold_piece: Option<Tetromino> = None;
+    let mut can_hold = true;
+    let mut next_piece = spawn_piece();
     let mut last_render_time = get_time();
+    let mut game_over = false;
+    let mut last_gravity_tick = Instant::now();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
     let mut needs_rendering = true;
     loop {
         if let Some(pressed_key) = get_key() {
-            needs_rendering = true;
             match pressed_key {
-                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => tetris_settings(),
+                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
+                    rotate_piece(&mut current_piece, &mut table);
+                    print_table(table.clone(), &hold_piece, &next_piece, &current_piece);
+                }
+                KeyCode::Left => {
+                    move_piece_left(&mut current_piece, &mut table);
+                    print_table(table.clone(), &hold_piece, &next_piece, &current_piece);
+                }
+                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
+                    if !move_piece_down(&mut current_piece, &mut table) {
+                        clear_lines(&mut table);
+                        current_piece = next_piece;
+                        next_piece = spawn_piece();
+                        if is_game_over(&current_piece, &table) {
+                            println!("Game Over!");
+                            // game over
+                            game_over = true
+                        }
+                        place_piece_on_board(&mut table, &current_piece);
+                        can_hold = true;
+                    }
+                    print_table(table.clone(), &hold_piece, &next_piece, &current_piece);
+                }
+                KeyCode::Right => {
+                    move_piece_right(&mut current_piece, &mut table);
+                    print_table(table.clone(), &hold_piece, &next_piece, &current_piece);
+                }
+                KeyCode::Char(c) if c == ' ' => {
+                    clear_piece_from_board(&mut table, &current_piece);
+                    while can_move(&current_piece, &table, 0, 1) {
+                        current_piece.y += 1;
+                    }
+                    lock_piece(&current_piece, &mut table);
+                    clear_lines(&mut table);
+                    current_piece = next_piece;
+                    next_piece = spawn_piece();
+                    if is_game_over(&current_piece, &table) {
+                        println!("Game Over!");
+                        // game over
+                        game_over = true;
+                    } else {
+                        place_piece_on_board(&mut table, &current_piece);
+                    }
+                    can_hold = true;
+                    print_table(table.clone(), &hold_piece, &next_piece, &current_piece);
+                }
+                KeyCode::Char('c') | KeyCode::Char('C') => {
+                    if can_hold {
+                        clear_piece_from_board(&mut table, &current_piece);
+                        if let Some(mut held) = hold_piece.take() {
+                            std::mem::swap(&mut held, &mut current_piece);
+                            hold_piece = Some(held);
+                            current_piece = current_piece.clone().with_position(
+                                4 - current_piece.pivot.0,
+                                0 - current_piece.pivot.1,
+                            );
+                        } else {
+                            hold_piece = Some(current_piece.clone());
+                            current_piece = next_piece;
+                            next_piece = spawn_piece();
+                        }
+                        place_piece_on_board(&mut table, &current_piece);
+                        can_hold = false;
+                        print_table(table.clone(), &hold_piece, &next_piece, &current_piece);
+                    }
+                }
+                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
+                    needs_rendering = true;
+                    tetris_settings();
+                }
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                 KeyCode::Char('q') | KeyCode::Char('Q') => return,
                 KeyCode::Esc => process::exit(0),
-                _ => {}
+                _ => needs_rendering = true,
             }
+        }
+        if last_gravity_tick.elapsed() >= Duration::from_millis(500) && !game_over {
+            if !move_piece_down(&mut current_piece, &mut table) {
+                clear_lines(&mut table);
+                current_piece = next_piece;
+                next_piece = spawn_piece();
+                if is_game_over(&current_piece, &table) {
+                    println!("Game Over!");
+                    // game over
+                    game_over = true
+                }
+                place_piece_on_board(&mut table, &current_piece);
+                can_hold = true;
+            }
+            print_table(table.clone(), &hold_piece, &next_piece, &current_piece);
+            last_gravity_tick = Instant::now();
         }
         let current_time = get_time();
         let (width, height) = terminal::size().unwrap();
@@ -2444,6 +2906,7 @@ fn tetris() {
             || needs_rendering
         {
             render_tetris();
+            print_table(table.clone(), &hold_piece, &next_piece, &current_piece);
             last_render_time = current_time;
             last_width = width;
             last_height = height;
@@ -2542,7 +3005,7 @@ fn game_of_life() {
                     ));
                 }
             }
-            output.push_str(&render_bottom(2, help_string, help_more_string));
+            output.push_str(&render_bottom(menu_options.len() as u16, help_string, help_more_string));
             execute!(stdout, crossterm::terminal::BeginSynchronizedUpdate).unwrap();
             clear();
             print!("{}", output);
