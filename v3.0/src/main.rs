@@ -2526,275 +2526,303 @@ fn tetris() {
         let logo_0_lines: Vec<&str> = logo_0.lines().collect();
         let mut stdout = io::stdout();
         let mut output = String::new();
-        output.push_str(&format!(
-            "{}score {}{}level {}",
-            cursor::MoveTo(width - score.to_string().len() as u16 - 7, logo_0_lines.len() as u16 + 2),
-            score,
-            cursor::MoveTo(width - level.to_string().len() as u16 - 7, logo_0_lines.len() as u16 + 3),
-            level
-        ));
-        output.push_str(&format!(
-            "{}",
-            cursor::MoveTo(0, logo_0_lines.len() as u16 + 2)
-        ));
-        clear_piece_from_board(&mut table, current_piece);
-        place_ghost_piece_on_board(&mut table, current_piece);
-        place_piece_on_board(&mut table, current_piece);
-        let board_width = table[0].len();
-        let mut board_lines: Vec<String> = Vec::new();
         if height
             .saturating_sub(logo_0_lines.len() as u16)
             .saturating_sub(if !settings.hide_help {
-                1 + if *HELP_OPEN.lock().unwrap() { 1 } else { 0 }
+                1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help { 1 } else { 0 }
             } else {
                 0
             })
-            .saturating_sub(1)
             > 22
         {
-            board_lines.push(format!("│┌{}┐", "──".repeat(board_width)));
-        } else {
-            board_lines.push(format!("{}╭┼──────┴─╯        ╰─┴┬", cursor::MoveUp(1)));
-        }
-        for (y, row) in table.iter().enumerate() {
-            let mut line = String::from("││");
-            if settings.tetris_use_colors {
-                let mut last_color: Option<Color> = None;
-                for &cell in row.iter() {
-                    let color = match cell {
-                        1 => Some(Color::DarkCyan),
-                        2 => Some(Color::DarkYellow),
-                        3 => Some(Color::DarkMagenta),
-                        4 => Some(Color::DarkBlue),
-                        5 => Some(Color::Blue),
-                        6 => Some(Color::DarkGreen),
-                        7 => Some(Color::DarkRed),
-                        _ => Some(get_color("theme")),
-                    };
-                    if color != last_color {
-                        line.push_str(&format!("{}", SetForegroundColor(color.unwrap())));
-                        last_color = color;
-                    }
-                    match cell {
-                        0 => line.push_str("  "),
-                        9 => {
-                            if settings.tetris_show_ghost {
-                                line.push_str("▒▒")
-                            } else {
-                                line.push_str("  ")
-                            }
-                        }
-                        _ => line.push_str("██"),
-                    }
-                }
-                line.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
-            } else {
-                for (x, &cell) in row.iter().enumerate() {
-                    let is_current_piece_block = current_piece.shape.iter().any(|(dx, dy)| {
-                        let px = current_piece.x + dx;
-                        let py = current_piece.y + dy;
-                        px == x as i32 && py == y as i32
-                    });
-                    if is_current_piece_block {
-                        line.push_str(&format!("{}", SetForegroundColor(get_color("main"))));
-                    }
-                    match cell {
-                        0 => line.push_str("  "),
-                        9 => {
-                            if settings.tetris_show_ghost {
-                                line.push_str("▒▒")
-                            } else {
-                                line.push_str("  ")
-                            }
-                        }
-                        _ => line.push_str("██"),
-                    }
-                    if is_current_piece_block {
-                        line.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
-                    }
-                }
-            }
-            line.push('│');
-            board_lines.push(line);
-        }
-        if height
-            .saturating_sub(logo_0_lines.len() as u16)
-            .saturating_sub(if !settings.hide_help {
-                1 + if *HELP_OPEN.lock().unwrap() { 1 } else { 0 }
-            } else {
-                0
-            })
-            .saturating_sub(2)
-            > 22
-        {
-            board_lines.push(format!("│└{}┘", "──".repeat(board_width)));
-        } else {
-            board_lines.push(format!("╰┴{}┴", "──".repeat(board_width)));
-        }
-        let mut hold_box: Vec<String> = Vec::new();
-        if height
-            .saturating_sub(logo_0_lines.len() as u16)
-            .saturating_sub(if !settings.hide_help {
-                1 + if *HELP_OPEN.lock().unwrap() { 1 } else { 0 }
-            } else {
-                0
-            })
-            .saturating_sub(1)
-            <= 22
-        {
-            hold_box.push("".to_string());
-        }
-        hold_box.push("┌─ hold ─┐".to_string());
-        for y in 0..4 {
-            let mut line = String::from("│");
-            for x in 0..4 {
-                let block = match hold_piece {
-                    Some(p) => {
-                        let min_x = p.shape.iter().map(|(x, _)| *x).min().unwrap_or(0);
-                        let max_x = p.shape.iter().map(|(x, _)| *x).max().unwrap_or(0);
-                        let min_y = p.shape.iter().map(|(_, y)| *y).min().unwrap_or(0);
-                        let max_y = p.shape.iter().map(|(_, y)| *y).max().unwrap_or(0);
-                        let offset_x = (4 - (max_x - min_x + 1)) / 2 - min_x;
-                        let offset_y = (4 - (max_y - min_y + 1)) / 2 - min_y;
-                        p.shape
-                            .iter()
-                            .any(|(dx, dy)| *dx + offset_x == x && *dy + offset_y == y)
-                    }
-                    None => false,
-                };
-                if block {
-                    if settings.tetris_use_colors {
-                        let piece_id = hold_piece.as_ref().map(|p| p.color).unwrap_or(0);
-                        let color = match piece_id {
-                            1 => Color::DarkCyan,
-                            2 => Color::DarkYellow,
-                            3 => Color::DarkMagenta,
-                            4 => Color::DarkBlue,
-                            5 => Color::Blue,
-                            6 => Color::DarkGreen,
-                            7 => Color::DarkRed,
-                            _ => get_color("theme"),
-                        };
-                        line.push_str(&format!(
-                            "{}██{}",
-                            SetForegroundColor(color),
-                            SetForegroundColor(get_color("theme"))
-                        ));
-                    } else {
-                        line.push_str(&format!(
-                            "{}██{}",
-                            SetForegroundColor(get_color("main")),
-                            SetForegroundColor(get_color("theme"))
-                        ));
-                    }
-                } else {
-                    line.push_str("  ");
-                }
-            }
-            line.push_str("│");
-            hold_box.push(line);
-        }
-        hold_box.push("└────────┘".to_string());
-        let mut next_box: Vec<String> = Vec::new();
-        next_box.push("┌─ next ─┐".to_string());
-        for y in 0..4 {
-            let mut line = String::from("│");
-            for x in 0..4 {
-                let min_x = next_piece.shape.iter().map(|(x, _)| *x).min().unwrap_or(0);
-                let max_x = next_piece.shape.iter().map(|(x, _)| *x).max().unwrap_or(0);
-                let min_y = next_piece.shape.iter().map(|(_, y)| *y).min().unwrap_or(0);
-                let max_y = next_piece.shape.iter().map(|(_, y)| *y).max().unwrap_or(0);
-                let offset_x = (4 - (max_x - min_x + 1)) / 2 - min_x;
-                let offset_y = (4 - (max_y - min_y + 1)) / 2 - min_y;
-                let block = next_piece
-                    .shape
-                    .iter()
-                    .any(|(dx, dy)| *dx + offset_x == x && *dy + offset_y == y);
-                if block {
-                    if settings.tetris_use_colors {
-                        let piece_id = next_piece.color;
-                        let color = match piece_id {
-                            1 => Color::DarkCyan,
-                            2 => Color::DarkYellow,
-                            3 => Color::DarkMagenta,
-                            4 => Color::DarkBlue,
-                            5 => Color::Blue,
-                            6 => Color::DarkGreen,
-                            7 => Color::DarkRed,
-                            _ => get_color("theme"),
-                        };
-                        line.push_str(&format!(
-                            "{}██{}",
-                            SetForegroundColor(color),
-                            SetForegroundColor(get_color("theme"))
-                        ));
-                    } else {
-                        line.push_str(&format!(
-                            "{}██{}",
-                            SetForegroundColor(get_color("main")),
-                            SetForegroundColor(get_color("theme"))
-                        ));
-                    }
-                } else {
-                    line.push_str("  ");
-                }
-            }
-            line.push_str("│");
-            next_box.push(line);
-        }
-        next_box.push("└────────┘".to_string());
-        let total_lines = board_lines.len().max(hold_box.len() + next_box.len());
-        for i in 0..total_lines {
-            let board_line = board_lines.get(i).map(|s| s.as_str()).unwrap_or("");
-            let right_line = if i < hold_box.len() {
-                hold_box[i].clone()
-            } else if i < hold_box.len() + next_box.len() {
-                next_box[i - hold_box.len()].clone()
-            } else {
-                "".to_string()
-            };
             output.push_str(&format!(
-                "{:<width$}{}\n",
-                board_line,
-                right_line,
-                width = board_width * 2 + 2
+                "{}score {}{}level {}",
+                cursor::MoveTo(width - score.to_string().len() as u16 - 7, logo_0_lines.len() as u16 + 2),
+                score,
+                cursor::MoveTo(width - level.to_string().len() as u16 - 7, logo_0_lines.len() as u16 + 3),
+                level
             ));
-        }
-        if game_over {
-            let score_text = format!("score {}", score);
-            let level_text = format!("level {}", level);
-            let score_padding_left = (22 - score_text.len()) / 2;
-            let score_padding_right = 22 - score_padding_left - score_text.len();
-            let level_padding_left = (22 - level_text.len()) / 2;
-            let level_padding_right = 22 - level_padding_left - level_text.len();
-            let score_line = format!(
-                "│{}{}{}{}{}│",
-                " ".repeat(score_padding_left),
-                SetForegroundColor(get_color("main")),
-                score_text,
-                SetForegroundColor(get_color("theme")),
-                " ".repeat(score_padding_right)
-            );
-            let level_line = format!(
-                "│{}{}{}{}{}│",
-                " ".repeat(level_padding_left),
-                SetForegroundColor(get_color("main")),
-                level_text,
-                SetForegroundColor(get_color("theme")),
-                " ".repeat(level_padding_right)
-            );
-            let center_x = (width - 22 as u16) / 2;
-            let center_y = (height - 3) / 2;
             output.push_str(&format!(
-                "{}{}{}{}{}{}{}{}",
+                "{}",
+                cursor::MoveTo(0, logo_0_lines.len() as u16 + 1)
+            ));
+            clear_piece_from_board(&mut table, current_piece);
+            place_ghost_piece_on_board(&mut table, current_piece);
+            place_piece_on_board(&mut table, current_piece);
+            let board_width = table[0].len();
+            let mut board_lines: Vec<String> = Vec::new();
+            if height
+                .saturating_sub(logo_0_lines.len() as u16)
+                .saturating_sub(if !settings.hide_help {
+                    1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help { 1 } else { 0 }
+                } else {
+                    0
+                })
+                .saturating_sub(1)
+                > 22
+            {
+                board_lines.push(format!("│┌{}┐", "──".repeat(board_width)));
+            } else {
+                board_lines.push(format!("{}╭┼──────┴─╯        ╰─┴┬", cursor::MoveUp(1)));
+            }
+            for (y, row) in table.iter().enumerate() {
+                let mut line = String::from("││");
+                if settings.tetris_use_colors {
+                    let mut last_color: Option<Color> = None;
+                    for &cell in row.iter() {
+                        let color = match cell {
+                            1 => Some(Color::DarkCyan),
+                            2 => Some(Color::DarkYellow),
+                            3 => Some(Color::DarkMagenta),
+                            4 => Some(Color::DarkBlue),
+                            5 => Some(Color::Blue),
+                            6 => Some(Color::DarkGreen),
+                            7 => Some(Color::DarkRed),
+                            _ => Some(get_color("theme")),
+                        };
+                        if color != last_color {
+                            line.push_str(&format!("{}", SetForegroundColor(color.unwrap())));
+                            last_color = color;
+                        }
+                        match cell {
+                            0 => line.push_str("  "),
+                            9 => {
+                                if settings.tetris_show_ghost {
+                                    line.push_str("▒▒")
+                                } else {
+                                    line.push_str("  ")
+                                }
+                            }
+                            _ => line.push_str("██"),
+                        }
+                    }
+                    line.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
+                } else {
+                    for (x, &cell) in row.iter().enumerate() {
+                        let is_current_piece_block = current_piece.shape.iter().any(|(dx, dy)| {
+                            let px = current_piece.x + dx;
+                            let py = current_piece.y + dy;
+                            px == x as i32 && py == y as i32
+                        });
+                        if is_current_piece_block {
+                            line.push_str(&format!("{}", SetForegroundColor(get_color("main"))));
+                        }
+                        match cell {
+                            0 => line.push_str("  "),
+                            9 => {
+                                if settings.tetris_show_ghost {
+                                    line.push_str("▒▒")
+                                } else {
+                                    line.push_str("  ")
+                                }
+                            }
+                            _ => line.push_str("██"),
+                        }
+                        if is_current_piece_block {
+                            line.push_str(&format!("{}", SetForegroundColor(get_color("theme"))));
+                        }
+                    }
+                }
+                line.push('│');
+                board_lines.push(line);
+            }
+            if height
+                .saturating_sub(logo_0_lines.len() as u16)
+                .saturating_sub(if !settings.hide_help {
+                    1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help { 1 } else { 0 }
+                } else {
+                    0
+                })
+                .saturating_sub(2)
+                > 22
+            {
+                board_lines.push(format!("│└{}┘", "──".repeat(board_width)));
+            } else {
+                board_lines.push(format!("╰┴{}┴", "──".repeat(board_width)));
+            }
+            let mut hold_box: Vec<String> = Vec::new();
+            if height
+                .saturating_sub(logo_0_lines.len() as u16)
+                .saturating_sub(if !settings.hide_help {
+                    1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help { 1 } else { 0 }
+                } else {
+                    0
+                })
+                .saturating_sub(1)
+                <= 22
+            {
+                hold_box.push("".to_string());
+            }
+            hold_box.push("┌─ hold ─┐".to_string());
+            for y in 0..4 {
+                let mut line = String::from("│");
+                for x in 0..4 {
+                    let block = match hold_piece {
+                        Some(p) => {
+                            let min_x = p.shape.iter().map(|(x, _)| *x).min().unwrap_or(0);
+                            let max_x = p.shape.iter().map(|(x, _)| *x).max().unwrap_or(0);
+                            let min_y = p.shape.iter().map(|(_, y)| *y).min().unwrap_or(0);
+                            let max_y = p.shape.iter().map(|(_, y)| *y).max().unwrap_or(0);
+                            let offset_x = (4 - (max_x - min_x + 1)) / 2 - min_x;
+                            let offset_y = (4 - (max_y - min_y + 1)) / 2 - min_y;
+                            p.shape
+                                .iter()
+                                .any(|(dx, dy)| *dx + offset_x == x && *dy + offset_y == y)
+                        }
+                        None => false,
+                    };
+                    if block {
+                        if settings.tetris_use_colors {
+                            let piece_id = hold_piece.as_ref().map(|p| p.color).unwrap_or(0);
+                            let color = match piece_id {
+                                1 => Color::DarkCyan,
+                                2 => Color::DarkYellow,
+                                3 => Color::DarkMagenta,
+                                4 => Color::DarkBlue,
+                                5 => Color::Blue,
+                                6 => Color::DarkGreen,
+                                7 => Color::DarkRed,
+                                _ => get_color("theme"),
+                            };
+                            line.push_str(&format!(
+                                "{}██{}",
+                                SetForegroundColor(color),
+                                SetForegroundColor(get_color("theme"))
+                            ));
+                        } else {
+                            line.push_str(&format!(
+                                "{}██{}",
+                                SetForegroundColor(get_color("main")),
+                                SetForegroundColor(get_color("theme"))
+                            ));
+                        }
+                    } else {
+                        line.push_str("  ");
+                    }
+                }
+                line.push_str("│");
+                hold_box.push(line);
+            }
+            hold_box.push("└────────┘".to_string());
+            let mut next_box: Vec<String> = Vec::new();
+            next_box.push("┌─ next ─┐".to_string());
+            for y in 0..4 {
+                let mut line = String::from("│");
+                for x in 0..4 {
+                    let min_x = next_piece.shape.iter().map(|(x, _)| *x).min().unwrap_or(0);
+                    let max_x = next_piece.shape.iter().map(|(x, _)| *x).max().unwrap_or(0);
+                    let min_y = next_piece.shape.iter().map(|(_, y)| *y).min().unwrap_or(0);
+                    let max_y = next_piece.shape.iter().map(|(_, y)| *y).max().unwrap_or(0);
+                    let offset_x = (4 - (max_x - min_x + 1)) / 2 - min_x;
+                    let offset_y = (4 - (max_y - min_y + 1)) / 2 - min_y;
+                    let block = next_piece
+                        .shape
+                        .iter()
+                        .any(|(dx, dy)| *dx + offset_x == x && *dy + offset_y == y);
+                    if block {
+                        if settings.tetris_use_colors {
+                            let piece_id = next_piece.color;
+                            let color = match piece_id {
+                                1 => Color::DarkCyan,
+                                2 => Color::DarkYellow,
+                                3 => Color::DarkMagenta,
+                                4 => Color::DarkBlue,
+                                5 => Color::Blue,
+                                6 => Color::DarkGreen,
+                                7 => Color::DarkRed,
+                                _ => get_color("theme"),
+                            };
+                            line.push_str(&format!(
+                                "{}██{}",
+                                SetForegroundColor(color),
+                                SetForegroundColor(get_color("theme"))
+                            ));
+                        } else {
+                            line.push_str(&format!(
+                                "{}██{}",
+                                SetForegroundColor(get_color("main")),
+                                SetForegroundColor(get_color("theme"))
+                            ));
+                        }
+                    } else {
+                        line.push_str("  ");
+                    }
+                }
+                line.push_str("│");
+                next_box.push(line);
+            }
+            next_box.push("└────────┘".to_string());
+            let total_lines = board_lines.len().max(hold_box.len() + next_box.len());
+            for i in 0..total_lines {
+                let board_line = board_lines.get(i).map(|s| s.as_str()).unwrap_or("");
+                let right_line = if i < hold_box.len() {
+                    hold_box[i].clone()
+                } else if i < hold_box.len() + next_box.len() {
+                    next_box[i - hold_box.len()].clone()
+                } else {
+                    "".to_string()
+                };
+                output.push_str(&format!(
+                    "\n{:<width$}{}",
+                    board_line,
+                    right_line,
+                    width = board_width * 2 + 2
+                ));
+            }
+            if game_over {
+                let score_text = format!("score {}", score);
+                let level_text = format!("level {}", level);
+                let score_padding_left = (22 - score_text.len()) / 2;
+                let score_padding_right = 22 - score_padding_left - score_text.len();
+                let level_padding_left = (22 - level_text.len()) / 2;
+                let level_padding_right = 22 - level_padding_left - level_text.len();
+                let score_line = format!(
+                    "│{}{}{}{}{}│",
+                    " ".repeat(score_padding_left),
+                    SetForegroundColor(get_color("main")),
+                    score_text,
+                    SetForegroundColor(get_color("theme")),
+                    " ".repeat(score_padding_right)
+                );
+                let level_line = format!(
+                    "│{}{}{}{}{}│",
+                    " ".repeat(level_padding_left),
+                    SetForegroundColor(get_color("main")),
+                    level_text,
+                    SetForegroundColor(get_color("theme")),
+                    " ".repeat(level_padding_right)
+                );
+                let center_x = (width - 22) / 2;
+                let center_y = (height.saturating_sub(3) + logo_0_lines.len() as u16) / 2;
+                output.push_str(&format!(
+                    "{}{}{}{}{}{}{}{}",
+                    cursor::MoveTo(center_x, center_y),
+                    "┌───── game  over ─────┐",
+                    cursor::MoveTo(center_x, center_y + 1),
+                    score_line,
+                    cursor::MoveTo(center_x, center_y + 2),
+                    level_line,
+                    cursor::MoveTo(center_x, center_y + 3),
+                    "└──────────────────────┘"
+                ));
+            }
+        } else {
+            let text = format!(
+                "│ {}{}{} │",
+                SetForegroundColor(get_color("main")),
+                "window is too small",
+                SetForegroundColor(get_color("theme")),
+            );
+            let center_x = (width - 22) / 2;
+            let center_y = (height.saturating_sub(3) + logo_0_lines.len() as u16) / 2;
+            output.push_str(&format!(
+                "{}{}{}{}{}{}",
                 cursor::MoveTo(center_x, center_y),
-                "┌───── game  over ─────┐",
+                "┌─────── error ───────┐",
                 cursor::MoveTo(center_x, center_y + 1),
-                score_line,
+                text,
                 cursor::MoveTo(center_x, center_y + 2),
-                level_line,
-                cursor::MoveTo(center_x, center_y + 3),
-                "└──────────────────────┘"
+                "└─────────────────────┘"
             ));
         }
         print!("{}", output);
