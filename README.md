@@ -188,4 +188,4 @@
     <span>&nbsp;&nbsp;&nbsp;find out yourself ;)</span>
 </details>
 
-![NUUI](https://github.com/user-attachments/assets/187ebc49-1258-4de6-bb4f-de87374a6276)
+![Your NUUI your STYLE](https://github.com/user-attachments/assets/948c7316-b23a-4cb6-808e-9d37f48dae81)
