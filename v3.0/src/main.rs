@@ -3085,6 +3085,7 @@ fn tetris() {
     let mut level = 1;
     let mut lines_for_next_level = 10;
     let mut game_over = false;
+    let mut game_over_delay = Instant::now();
     let mut last_gravity_tick = Instant::now();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
     let mut needs_rendering = true;
@@ -3101,9 +3102,11 @@ fn tetris() {
                     KeyCode::Char('q') | KeyCode::Char('Q') => return,
                     KeyCode::Esc => process::exit(0),
                     _ => {
-                        reset_game(&mut table, &mut hold_piece, &mut current_piece, &mut next_piece, &mut score, &mut level, &mut lines_for_next_level, &mut can_hold);
-                        game_over = false;
-                        needs_rendering = true
+                        if game_over_delay.elapsed() >= Duration::from_millis(2000) {
+                            reset_game(&mut table, &mut hold_piece, &mut current_piece, &mut next_piece, &mut score, &mut level, &mut lines_for_next_level, &mut can_hold);
+                            game_over = false;
+                            needs_rendering = true
+                        }
                     }
                 }
             } else {
@@ -3122,7 +3125,8 @@ fn tetris() {
                             current_piece = next_piece;
                             next_piece = spawn_piece();
                             if is_game_over(&current_piece, &table) {
-                                game_over = true
+                                game_over = true;
+                                game_over_delay = Instant::now()
                             }
                             place_piece_on_board(&mut table, &current_piece);
                             can_hold = true;
@@ -3139,7 +3143,8 @@ fn tetris() {
                         current_piece = next_piece;
                         next_piece = spawn_piece();
                         if is_game_over(&current_piece, &table) {
-                            game_over = true
+                            game_over = true;
+                            game_over_delay = Instant::now()
                         }
                         place_piece_on_board(&mut table, &current_piece);
                         can_hold = true;
@@ -3182,7 +3187,8 @@ fn tetris() {
                 current_piece = next_piece;
                 next_piece = spawn_piece();
                 if is_game_over(&current_piece, &table) {
-                    game_over = true
+                    game_over = true;
+                    game_over_delay = Instant::now()
                 }
                 place_piece_on_board(&mut table, &current_piece);
                 can_hold = true;
