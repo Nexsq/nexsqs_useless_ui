@@ -602,11 +602,11 @@ fn ping_tool() {
         let (_, height) = terminal::size().unwrap();
         let mut help_length = 0;
         if !settings.hide_help {
-            help_length += 1
-        };
-        let help_open = HELP_OPEN.lock().unwrap();
-        if *help_open {
-            help_length += help_more_string_lines
+            help_length += 1;
+            let help_open = HELP_OPEN.lock().unwrap();
+            if *help_open {
+                help_length += help_more_string_lines
+            }
         }
         let max_pings = height.saturating_sub(12 + help_length).max(1) as usize;
         while pings.len() > max_pings {
@@ -772,11 +772,11 @@ fn port_scan() {
         let (_, height) = terminal::size().unwrap();
         let mut help_length = 0;
         if !settings.hide_help {
-            help_length += 1
-        };
-        let help_open = HELP_OPEN.lock().unwrap();
-        if *help_open {
-            help_length += help_more_string_lines
+            help_length += 1;
+            let help_open = HELP_OPEN.lock().unwrap();
+            if *help_open {
+                help_length += help_more_string_lines
+            }
         }
         let max_port_scans = height.saturating_sub(14 + help_length).max(1) as usize;
         let mut port_scans = PORT_SCANS.lock().unwrap();
@@ -822,11 +822,11 @@ fn port_scan() {
         let (_, height) = terminal::size().unwrap();
         let mut help_length = 0;
         if !settings.hide_help {
-            help_length += 1
-        };
-        let help_open = HELP_OPEN.lock().unwrap();
-        if *help_open {
-            help_length += help_more_string_lines
+            help_length += 1;
+            let help_open = HELP_OPEN.lock().unwrap();
+            if *help_open {
+                help_length += help_more_string_lines
+            }
         }
         let mut stdout = io::stdout();
         execute!(stdout, cursor::MoveTo(2, height - 2 - help_length)).unwrap();
@@ -1728,11 +1728,11 @@ fn macro_tool() {
             let (_, height) = terminal::size().unwrap();
             let mut help_length = 0;
             if !settings.hide_help {
-                help_length += 1
-            };
-            let help_open = HELP_OPEN.lock().unwrap();
-            if *help_open {
-                help_length += help_more_string_lines
+                help_length += 1;
+                let help_open = HELP_OPEN.lock().unwrap();
+                if *help_open {
+                    help_length += help_more_string_lines
+                }
             }
             let max_macro_actions = height.saturating_sub(14 + help_length).max(1) as usize;
             while macro_actions.len() > max_macro_actions {
@@ -2518,7 +2518,7 @@ fn tetris() {
         current_piece: &Tetromino,
         score: u32,
         level: u32,
-        game_over: bool
+        game_over: bool,
     ) {
         let settings = Settings::load();
         let (width, height) = terminal::size().unwrap();
@@ -2529,7 +2529,11 @@ fn tetris() {
         if height
             .saturating_sub(logo_0_lines.len() as u16)
             .saturating_sub(if !settings.hide_help {
-                1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help { 1 } else { 0 }
+                1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help {
+                    1
+                } else {
+                    0
+                }
             } else {
                 0
             })
@@ -2537,9 +2541,15 @@ fn tetris() {
         {
             output.push_str(&format!(
                 "{}score {}{}level {}",
-                cursor::MoveTo(width - score.to_string().len() as u16 - 7, logo_0_lines.len() as u16 + 2),
+                cursor::MoveTo(
+                    width - score.to_string().len() as u16 - 7,
+                    logo_0_lines.len() as u16 + 2
+                ),
                 score,
-                cursor::MoveTo(width - level.to_string().len() as u16 - 7, logo_0_lines.len() as u16 + 3),
+                cursor::MoveTo(
+                    width - level.to_string().len() as u16 - 7,
+                    logo_0_lines.len() as u16 + 3
+                ),
                 level
             ));
             output.push_str(&format!(
@@ -2554,7 +2564,11 @@ fn tetris() {
             if height
                 .saturating_sub(logo_0_lines.len() as u16)
                 .saturating_sub(if !settings.hide_help {
-                    1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help { 1 } else { 0 }
+                    1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help {
+                        1
+                    } else {
+                        0
+                    }
                 } else {
                     0
                 })
@@ -2629,7 +2643,11 @@ fn tetris() {
             if height
                 .saturating_sub(logo_0_lines.len() as u16)
                 .saturating_sub(if !settings.hide_help {
-                    1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help { 1 } else { 0 }
+                    1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help {
+                        1
+                    } else {
+                        0
+                    }
                 } else {
                     0
                 })
@@ -2644,7 +2662,11 @@ fn tetris() {
             if height
                 .saturating_sub(logo_0_lines.len() as u16)
                 .saturating_sub(if !settings.hide_help {
-                    1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help { 1 } else { 0 }
+                    1 + if *HELP_OPEN.lock().unwrap() && !settings.hide_help {
+                        1
+                    } else {
+                        0
+                    }
                 } else {
                     0
                 })
@@ -2932,7 +2954,12 @@ fn tetris() {
             }
         }
     }
-    fn clear_lines(table: &mut Vec<Vec<u8>>, score: &mut u32, level: &mut u32, lines_for_next_level: &mut u32) -> u32 {
+    fn clear_lines(
+        table: &mut Vec<Vec<u8>>,
+        score: &mut u32,
+        level: &mut u32,
+        lines_for_next_level: &mut u32,
+    ) -> u32 {
         let mut cleared_lines = 0;
         let mut new_table: Vec<Vec<u8>> = Vec::new();
         for row in table.iter() {
@@ -2994,7 +3021,12 @@ fn tetris() {
         }
         place_piece_on_board(table, piece);
     }
-    fn move_piece_down(piece: &mut Tetromino, table: &mut Vec<Vec<u8>>, score: &mut u32, count_score: bool) -> bool {
+    fn move_piece_down(
+        piece: &mut Tetromino,
+        table: &mut Vec<Vec<u8>>,
+        score: &mut u32,
+        count_score: bool,
+    ) -> bool {
         clear_piece_from_board(table, piece);
         if can_move(piece, table, 0, 1) {
             piece.y += 1;
@@ -3103,7 +3135,16 @@ fn tetris() {
                     KeyCode::Esc => process::exit(0),
                     _ => {
                         if game_over_delay.elapsed() >= Duration::from_millis(2000) {
-                            reset_game(&mut table, &mut hold_piece, &mut current_piece, &mut next_piece, &mut score, &mut level, &mut lines_for_next_level, &mut can_hold);
+                            reset_game(
+                                &mut table,
+                                &mut hold_piece,
+                                &mut current_piece,
+                                &mut next_piece,
+                                &mut score,
+                                &mut level,
+                                &mut lines_for_next_level,
+                                &mut can_hold,
+                            );
                             game_over = false;
                             needs_rendering = true
                         }
@@ -3113,15 +3154,36 @@ fn tetris() {
                 match pressed_key {
                     KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                         rotate_piece(&mut current_piece, &mut table);
-                        print_table(table.clone(), &hold_piece, &next_piece, &current_piece, score, level, game_over);
+                        print_table(
+                            table.clone(),
+                            &hold_piece,
+                            &next_piece,
+                            &current_piece,
+                            score,
+                            level,
+                            game_over,
+                        );
                     }
                     KeyCode::Left => {
                         move_piece_left(&mut current_piece, &mut table);
-                        print_table(table.clone(), &hold_piece, &next_piece, &current_piece, score, level, game_over);
+                        print_table(
+                            table.clone(),
+                            &hold_piece,
+                            &next_piece,
+                            &current_piece,
+                            score,
+                            level,
+                            game_over,
+                        );
                     }
                     KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
                         if !move_piece_down(&mut current_piece, &mut table, &mut score, true) {
-                            clear_lines(&mut table, &mut score, &mut level, &mut lines_for_next_level);
+                            clear_lines(
+                                &mut table,
+                                &mut score,
+                                &mut level,
+                                &mut lines_for_next_level,
+                            );
                             current_piece = next_piece;
                             next_piece = spawn_piece();
                             if is_game_over(&current_piece, &table) {
@@ -3131,15 +3193,36 @@ fn tetris() {
                             place_piece_on_board(&mut table, &current_piece);
                             can_hold = true;
                         }
-                        print_table(table.clone(), &hold_piece, &next_piece, &current_piece, score, level, game_over);
+                        print_table(
+                            table.clone(),
+                            &hold_piece,
+                            &next_piece,
+                            &current_piece,
+                            score,
+                            level,
+                            game_over,
+                        );
                     }
                     KeyCode::Right => {
                         move_piece_right(&mut current_piece, &mut table);
-                        print_table(table.clone(), &hold_piece, &next_piece, &current_piece, score, level, game_over);
+                        print_table(
+                            table.clone(),
+                            &hold_piece,
+                            &next_piece,
+                            &current_piece,
+                            score,
+                            level,
+                            game_over,
+                        );
                     }
                     KeyCode::Char(' ') => {
                         hard_drop(&mut current_piece, &mut table, &mut score);
-                        clear_lines(&mut table, &mut score, &mut level, &mut lines_for_next_level);
+                        clear_lines(
+                            &mut table,
+                            &mut score,
+                            &mut level,
+                            &mut lines_for_next_level,
+                        );
                         current_piece = next_piece;
                         next_piece = spawn_piece();
                         if is_game_over(&current_piece, &table) {
@@ -3148,7 +3231,15 @@ fn tetris() {
                         }
                         place_piece_on_board(&mut table, &current_piece);
                         can_hold = true;
-                        print_table(table.clone(), &hold_piece, &next_piece, &current_piece, score, level, game_over);
+                        print_table(
+                            table.clone(),
+                            &hold_piece,
+                            &next_piece,
+                            &current_piece,
+                            score,
+                            level,
+                            game_over,
+                        );
                     }
                     KeyCode::Char('c') | KeyCode::Char('C') => {
                         if can_hold {
@@ -3167,7 +3258,15 @@ fn tetris() {
                             }
                             place_piece_on_board(&mut table, &current_piece);
                             can_hold = false;
-                            print_table(table.clone(), &hold_piece, &next_piece, &current_piece, score, level, game_over);
+                            print_table(
+                                table.clone(),
+                                &hold_piece,
+                                &next_piece,
+                                &current_piece,
+                                score,
+                                level,
+                                game_over,
+                            );
                         }
                     }
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
@@ -3181,9 +3280,19 @@ fn tetris() {
                 }
             }
         }
-        if last_gravity_tick.elapsed() >= Duration::from_millis(((1000 - (level * 50).min(800)) as f64 / settings.tetris_speed_multiplier) as u64) && !game_over {
+        if last_gravity_tick.elapsed()
+            >= Duration::from_millis(
+                ((1000 - (level * 50).min(800)) as f64 / settings.tetris_speed_multiplier) as u64,
+            )
+            && !game_over
+        {
             if !move_piece_down(&mut current_piece, &mut table, &mut score, false) {
-                clear_lines(&mut table, &mut score, &mut level, &mut lines_for_next_level);
+                clear_lines(
+                    &mut table,
+                    &mut score,
+                    &mut level,
+                    &mut lines_for_next_level,
+                );
                 current_piece = next_piece;
                 next_piece = spawn_piece();
                 if is_game_over(&current_piece, &table) {
@@ -3193,7 +3302,15 @@ fn tetris() {
                 place_piece_on_board(&mut table, &current_piece);
                 can_hold = true;
             }
-            print_table(table.clone(), &hold_piece, &next_piece, &current_piece, score, level, game_over);
+            print_table(
+                table.clone(),
+                &hold_piece,
+                &next_piece,
+                &current_piece,
+                score,
+                level,
+                game_over,
+            );
             last_gravity_tick = Instant::now();
         }
         let current_time = get_time();
@@ -3204,7 +3321,15 @@ fn tetris() {
             || needs_rendering
         {
             render_tetris();
-            print_table(table.clone(), &hold_piece, &next_piece, &current_piece, score, level, game_over);
+            print_table(
+                table.clone(),
+                &hold_piece,
+                &next_piece,
+                &current_piece,
+                score,
+                level,
+                game_over,
+            );
             last_render_time = current_time;
             last_width = width;
             last_height = height;
@@ -3470,10 +3595,10 @@ fn game_of_life() {
         let mut help_length = 0;
         if !settings.hide_help {
             help_length += 1;
-        }
-        let help_open = HELP_OPEN.lock().unwrap();
-        if *help_open {
-            help_length += help_more_string_lines;
+            let help_open = HELP_OPEN.lock().unwrap();
+            if *help_open {
+                help_length += help_more_string_lines
+            }
         }
         let adjusted_height = (height as usize)
             .saturating_sub(logo_0_lines.len())
@@ -4210,12 +4335,12 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
         .iter()
         .position(|&c| c == settings.color)
         .unwrap_or(0);
-    let ping_delays = [10, 50, 100, 200, 500, 1000];
+    let ping_delays = [10, 50, 100, 200, 350, 500, 1000];
     let ping_delay_index = ping_delays
         .iter()
         .position(|&c| c == settings.ping_delay)
         .unwrap_or(0);
-    let port_scan_timeouts = [10, 25, 50, 75, 100, 150, 200, 500, 750, 1000];
+    let port_scan_timeouts = [10, 25, 50, 75, 100, 150, 200, 350, 500, 750, 1000];
     let port_scan_timeout_index = port_scan_timeouts
         .iter()
         .position(|&c| c == settings.port_scan_timeout)
