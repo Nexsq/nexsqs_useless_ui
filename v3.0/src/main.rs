@@ -2345,7 +2345,7 @@ fn tetris() {
             "| quit: $[esc]$ | change tab: $[a]/[d]$ | move: $[←]/[→]/[↓/s]$ | rotate: $[↑/w]$ |",
         );
         let help_more_string = String::from(
-            r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | drop: $[space]$ | hold: $[c]$ |"#,
+            r#"| return: $[q]$ | change tab: $[backtab]/[tab]$ | drop: $[space]$ | hold: $[c]$ | pause: $[p]$ |"#,
         );
         let mut output = String::new();
         output.push_str(&render_top("tetris", Some("tetris_settings"), false));
@@ -2356,7 +2356,7 @@ fn tetris() {
         execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
         stdout.flush().unwrap();
     }
-    fn tetris_settings() {
+    fn tetris_settings(speed_multiplier_changed: &mut bool) {
         let mut settings = Settings::load();
         fn render_tetris_settings(menu_selected: usize, menu_options: &[&str]) {
             let settings = Settings::load();
@@ -2446,6 +2446,7 @@ fn tetris() {
                         0 => settings.set_tetris_use_colors(!settings.tetris_use_colors),
                         1 => settings.set_tetris_show_ghost(!settings.tetris_show_ghost),
                         2 => {
+                            *speed_multiplier_changed = true;
                             if tetris_speed_multiplier_index > 0 {
                                 settings.set_tetris_speed_multiplier(
                                     tetris_speed_multipliers[tetris_speed_multiplier_index - 1],
@@ -2474,6 +2475,7 @@ fn tetris() {
                         0 => settings.set_tetris_use_colors(!settings.tetris_use_colors),
                         1 => settings.set_tetris_show_ghost(!settings.tetris_show_ghost),
                         2 => {
+                            *speed_multiplier_changed = true;
                             settings.set_tetris_speed_multiplier(
                                 tetris_speed_multipliers[(tetris_speed_multiplier_index + 1)
                                     % tetris_speed_multipliers.len()],
@@ -2521,6 +2523,8 @@ fn tetris() {
         current_piece: &Tetromino,
         score: u32,
         level: u32,
+        speed_multiplier_changed: bool,
+        paused: bool,
         game_over: bool,
     ) {
         let settings = Settings::load();
@@ -2595,6 +2599,7 @@ fn tetris() {
                             5 => Some(Color::Blue),
                             6 => Some(Color::DarkGreen),
                             7 => Some(Color::DarkRed),
+                            9 => Some(Color::DarkGrey),
                             _ => Some(get_color("theme")),
                         };
                         if color != last_color {
@@ -2628,7 +2633,11 @@ fn tetris() {
                             0 => line.push_str("  "),
                             9 => {
                                 if settings.tetris_show_ghost {
-                                    line.push_str("▒▒")
+                                    line.push_str(&format!(
+                                        "{}▒▒{}",
+                                        SetForegroundColor(Color::DarkGrey),
+                                        SetForegroundColor(get_color("theme"))
+                                    ));
                                 } else {
                                     line.push_str("  ")
                                 }
@@ -2794,13 +2803,23 @@ fn tetris() {
                     width = board_width * 2 + 2
                 ));
             }
-            if game_over {
+            if paused {
                 let score_text = format!("score {}", score);
                 let level_text = format!("level {}", level);
+                let speed_text = format!(
+                    "speed {}",
+                    if !speed_multiplier_changed {
+                        settings.tetris_speed_multiplier.to_string()
+                    } else {
+                        format!("{} (varied)", settings.tetris_speed_multiplier)
+                    }
+                );
                 let score_padding_left = (22 - score_text.len()) / 2;
                 let score_padding_right = 22 - score_padding_left - score_text.len();
                 let level_padding_left = (22 - level_text.len()) / 2;
                 let level_padding_right = 22 - level_padding_left - level_text.len();
+                let speed_padding_left = (22 - speed_text.len()) / 2;
+                let speed_padding_right = 22 - speed_padding_left - speed_text.len();
                 let score_line = format!(
                     "│{}{}{}{}{}│",
                     " ".repeat(score_padding_left),
@@ -2817,10 +2836,75 @@ fn tetris() {
                     SetForegroundColor(get_color("theme")),
                     " ".repeat(level_padding_right)
                 );
+                let speed_line = format!(
+                    "│{}{}{}{}{}│",
+                    " ".repeat(speed_padding_left),
+                    SetForegroundColor(get_color("main")),
+                    speed_text,
+                    SetForegroundColor(get_color("theme")),
+                    " ".repeat(speed_padding_right)
+                );
                 let center_x = (width - 22) / 2;
                 let center_y = (height.saturating_sub(3) + logo_0_lines.len() as u16) / 2;
                 output.push_str(&format!(
-                    "{}{}{}{}{}{}{}{}",
+                    "{}{}{}{}{}{}{}{}{}{}",
+                    cursor::MoveTo(center_x, center_y),
+                    "┌─────── paused ───────┐",
+                    cursor::MoveTo(center_x, center_y + 1),
+                    score_line,
+                    cursor::MoveTo(center_x, center_y + 2),
+                    level_line,
+                    cursor::MoveTo(center_x, center_y + 3),
+                    speed_line,
+                    cursor::MoveTo(center_x, center_y + 4),
+                    "└──────────────────────┘"
+                ));
+            }
+            if game_over {
+                let score_text = format!("score {}", score);
+                let level_text = format!("level {}", level);
+                let speed_text = format!(
+                    "speed {}",
+                    if !speed_multiplier_changed {
+                        settings.tetris_speed_multiplier.to_string()
+                    } else {
+                        format!("{} (varied)", settings.tetris_speed_multiplier)
+                    }
+                );
+                let score_padding_left = (22 - score_text.len()) / 2;
+                let score_padding_right = 22 - score_padding_left - score_text.len();
+                let level_padding_left = (22 - level_text.len()) / 2;
+                let level_padding_right = 22 - level_padding_left - level_text.len();
+                let speed_padding_left = (22 - speed_text.len()) / 2;
+                let speed_padding_right = 22 - speed_padding_left - speed_text.len();
+                let score_line = format!(
+                    "│{}{}{}{}{}│",
+                    " ".repeat(score_padding_left),
+                    SetForegroundColor(get_color("main")),
+                    score_text,
+                    SetForegroundColor(get_color("theme")),
+                    " ".repeat(score_padding_right)
+                );
+                let level_line = format!(
+                    "│{}{}{}{}{}│",
+                    " ".repeat(level_padding_left),
+                    SetForegroundColor(get_color("main")),
+                    level_text,
+                    SetForegroundColor(get_color("theme")),
+                    " ".repeat(level_padding_right)
+                );
+                let speed_line = format!(
+                    "│{}{}{}{}{}│",
+                    " ".repeat(speed_padding_left),
+                    SetForegroundColor(get_color("main")),
+                    speed_text,
+                    SetForegroundColor(get_color("theme")),
+                    " ".repeat(speed_padding_right)
+                );
+                let center_x = (width - 22) / 2;
+                let center_y = (height.saturating_sub(3) + logo_0_lines.len() as u16) / 2;
+                output.push_str(&format!(
+                    "{}{}{}{}{}{}{}{}{}{}",
                     cursor::MoveTo(center_x, center_y),
                     "┌───── game  over ─────┐",
                     cursor::MoveTo(center_x, center_y + 1),
@@ -2828,6 +2912,8 @@ fn tetris() {
                     cursor::MoveTo(center_x, center_y + 2),
                     level_line,
                     cursor::MoveTo(center_x, center_y + 3),
+                    speed_line,
+                    cursor::MoveTo(center_x, center_y + 4),
                     "└──────────────────────┘"
                 ));
             }
@@ -3096,6 +3182,7 @@ fn tetris() {
         next_piece: &mut Tetromino,
         score: &mut u32,
         level: &mut u32,
+        speed_multiplier_changed: &mut bool,
         lines_for_next_level: &mut u32,
         can_hold: &mut bool,
     ) {
@@ -3103,6 +3190,7 @@ fn tetris() {
         *hold_piece = None;
         *score = 0;
         *level = 1;
+        *speed_multiplier_changed = false;
         *lines_for_next_level = 10;
         *can_hold = true;
         *current_piece = spawn_piece();
@@ -3120,6 +3208,8 @@ fn tetris() {
     let mut level = 1;
     let mut lines_for_next_level = 10;
     let mut game_over = false;
+    let mut speed_multiplier_changed = false;
+    let mut paused = false;
     let mut game_over_delay = Instant::now();
     let mut last_gravity_tick = Instant::now();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
@@ -3131,7 +3221,7 @@ fn tetris() {
                 match pressed_key {
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                         needs_rendering = true;
-                        tetris_settings();
+                        tetris_settings(&mut speed_multiplier_changed);
                     }
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                     KeyCode::Char('q') | KeyCode::Char('Q') => return,
@@ -3145,6 +3235,7 @@ fn tetris() {
                                 &mut next_piece,
                                 &mut score,
                                 &mut level,
+                                &mut speed_multiplier_changed,
                                 &mut lines_for_next_level,
                                 &mut can_hold,
                             );
@@ -3155,131 +3246,164 @@ fn tetris() {
                 }
             } else {
                 match pressed_key {
-                    KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
-                        rotate_piece(&mut current_piece, &mut table);
-                        print_table(
-                            table.clone(),
-                            &hold_piece,
-                            &next_piece,
-                            &current_piece,
-                            score,
-                            level,
-                            game_over,
-                        );
+                    KeyCode::Char('p') | KeyCode::Char('P') => {
+                        paused = !paused;
+                        needs_rendering = true
                     }
-                    KeyCode::Left => {
-                        move_piece_left(&mut current_piece, &mut table);
-                        print_table(
-                            table.clone(),
-                            &hold_piece,
-                            &next_piece,
-                            &current_piece,
-                            score,
-                            level,
-                            game_over,
-                        );
-                    }
-                    KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
-                        if !move_piece_down(&mut current_piece, &mut table, &mut score, true) {
-                            clear_lines(
-                                &mut table,
-                                &mut score,
-                                &mut level,
-                                &mut lines_for_next_level,
-                            );
-                            current_piece = next_piece;
-                            next_piece = spawn_piece();
-                            if is_game_over(&current_piece, &table) {
-                                game_over = true;
-                                game_over_delay = Instant::now()
-                            }
-                            place_piece_on_board(&mut table, &current_piece);
-                            can_hold = true;
+                    KeyCode::Enter => {
+                        if paused {
+                            paused = !paused
                         }
-                        print_table(
-                            table.clone(),
-                            &hold_piece,
-                            &next_piece,
-                            &current_piece,
-                            score,
-                            level,
-                            game_over,
-                        );
-                    }
-                    KeyCode::Right => {
-                        move_piece_right(&mut current_piece, &mut table);
-                        print_table(
-                            table.clone(),
-                            &hold_piece,
-                            &next_piece,
-                            &current_piece,
-                            score,
-                            level,
-                            game_over,
-                        );
-                    }
-                    KeyCode::Char(' ') => {
-                        hard_drop(&mut current_piece, &mut table, &mut score);
-                        clear_lines(
-                            &mut table,
-                            &mut score,
-                            &mut level,
-                            &mut lines_for_next_level,
-                        );
-                        current_piece = next_piece;
-                        next_piece = spawn_piece();
-                        if is_game_over(&current_piece, &table) {
-                            game_over = true;
-                            game_over_delay = Instant::now()
-                        }
-                        place_piece_on_board(&mut table, &current_piece);
-                        can_hold = true;
-                        print_table(
-                            table.clone(),
-                            &hold_piece,
-                            &next_piece,
-                            &current_piece,
-                            score,
-                            level,
-                            game_over,
-                        );
-                    }
-                    KeyCode::Char('c') | KeyCode::Char('C') => {
-                        if can_hold {
-                            clear_piece_from_board(&mut table, &current_piece);
-                            if let Some(mut held) = hold_piece.take() {
-                                std::mem::swap(&mut held, &mut current_piece);
-                                hold_piece = Some(held);
-                                current_piece = current_piece.clone().with_position(
-                                    4 - current_piece.pivot.0,
-                                    0 - current_piece.pivot.1,
-                                );
-                            } else {
-                                hold_piece = Some(current_piece.clone());
-                                current_piece = next_piece;
-                                next_piece = spawn_piece();
-                            }
-                            place_piece_on_board(&mut table, &current_piece);
-                            can_hold = false;
-                            print_table(
-                                table.clone(),
-                                &hold_piece,
-                                &next_piece,
-                                &current_piece,
-                                score,
-                                level,
-                                game_over,
-                            );
-                        }
+                        needs_rendering = true
                     }
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                         needs_rendering = true;
-                        tetris_settings();
+                        tetris_settings(&mut speed_multiplier_changed);
                     }
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                     KeyCode::Char('q') | KeyCode::Char('Q') => return,
                     KeyCode::Esc => process::exit(0),
-                    _ => needs_rendering = true,
+                    _ => {
+                        if !paused {
+                            match pressed_key {
+                                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
+                                    rotate_piece(&mut current_piece, &mut table);
+                                    print_table(
+                                        table.clone(),
+                                        &hold_piece,
+                                        &next_piece,
+                                        &current_piece,
+                                        score,
+                                        level,
+                                        speed_multiplier_changed,
+                                        paused,
+                                        game_over,
+                                    );
+                                }
+                                KeyCode::Left => {
+                                    move_piece_left(&mut current_piece, &mut table);
+                                    print_table(
+                                        table.clone(),
+                                        &hold_piece,
+                                        &next_piece,
+                                        &current_piece,
+                                        score,
+                                        level,
+                                        speed_multiplier_changed,
+                                        paused,
+                                        game_over,
+                                    );
+                                }
+                                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
+                                    if !move_piece_down(
+                                        &mut current_piece,
+                                        &mut table,
+                                        &mut score,
+                                        true,
+                                    ) {
+                                        clear_lines(
+                                            &mut table,
+                                            &mut score,
+                                            &mut level,
+                                            &mut lines_for_next_level,
+                                        );
+                                        current_piece = next_piece;
+                                        next_piece = spawn_piece();
+                                        if is_game_over(&current_piece, &table) {
+                                            game_over = true;
+                                            game_over_delay = Instant::now()
+                                        }
+                                        place_piece_on_board(&mut table, &current_piece);
+                                        can_hold = true;
+                                    }
+                                    print_table(
+                                        table.clone(),
+                                        &hold_piece,
+                                        &next_piece,
+                                        &current_piece,
+                                        score,
+                                        level,
+                                        speed_multiplier_changed,
+                                        paused,
+                                        game_over,
+                                    );
+                                }
+                                KeyCode::Right => {
+                                    move_piece_right(&mut current_piece, &mut table);
+                                    print_table(
+                                        table.clone(),
+                                        &hold_piece,
+                                        &next_piece,
+                                        &current_piece,
+                                        score,
+                                        level,
+                                        speed_multiplier_changed,
+                                        paused,
+                                        game_over,
+                                    );
+                                }
+                                KeyCode::Char(' ') => {
+                                    hard_drop(&mut current_piece, &mut table, &mut score);
+                                    clear_lines(
+                                        &mut table,
+                                        &mut score,
+                                        &mut level,
+                                        &mut lines_for_next_level,
+                                    );
+                                    current_piece = next_piece;
+                                    next_piece = spawn_piece();
+                                    if is_game_over(&current_piece, &table) {
+                                        game_over = true;
+                                        game_over_delay = Instant::now()
+                                    }
+                                    place_piece_on_board(&mut table, &current_piece);
+                                    can_hold = true;
+                                    print_table(
+                                        table.clone(),
+                                        &hold_piece,
+                                        &next_piece,
+                                        &current_piece,
+                                        score,
+                                        level,
+                                        speed_multiplier_changed,
+                                        paused,
+                                        game_over,
+                                    );
+                                }
+                                KeyCode::Char('c') | KeyCode::Char('C') => {
+                                    if can_hold {
+                                        clear_piece_from_board(&mut table, &current_piece);
+                                        if let Some(mut held) = hold_piece.take() {
+                                            std::mem::swap(&mut held, &mut current_piece);
+                                            hold_piece = Some(held);
+                                            current_piece = current_piece.clone().with_position(
+                                                4 - current_piece.pivot.0,
+                                                0 - current_piece.pivot.1,
+                                            );
+                                        } else {
+                                            hold_piece = Some(current_piece.clone());
+                                            current_piece = next_piece;
+                                            next_piece = spawn_piece();
+                                        }
+                                        place_piece_on_board(&mut table, &current_piece);
+                                        can_hold = false;
+                                        print_table(
+                                            table.clone(),
+                                            &hold_piece,
+                                            &next_piece,
+                                            &current_piece,
+                                            score,
+                                            level,
+                                            speed_multiplier_changed,
+                                            paused,
+                                            game_over,
+                                        );
+                                    }
+                                }
+                                _ => needs_rendering = true,
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3287,6 +3411,7 @@ fn tetris() {
             >= Duration::from_millis(
                 ((1000 - (level * 50).min(800)) as f64 / settings.tetris_speed_multiplier) as u64,
             )
+            && !paused
             && !game_over
         {
             if !move_piece_down(&mut current_piece, &mut table, &mut score, false) {
@@ -3312,6 +3437,8 @@ fn tetris() {
                 &current_piece,
                 score,
                 level,
+                speed_multiplier_changed,
+                paused,
                 game_over,
             );
             last_gravity_tick = Instant::now();
@@ -3331,6 +3458,8 @@ fn tetris() {
                 &current_piece,
                 score,
                 level,
+                speed_multiplier_changed,
+                paused,
                 game_over,
             );
             last_render_time = current_time;
