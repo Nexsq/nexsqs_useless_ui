@@ -697,7 +697,7 @@ fn ping_tool() {
                     ping_tool();
                     return;
                 }
-                KeyCode::Char(c) if c == ' ' => {
+                KeyCode::Char(' ') => {
                     ping_tool();
                     return;
                 }
@@ -956,7 +956,7 @@ fn port_scan() {
                     port_scan();
                     return;
                 }
-                KeyCode::Char(c) if c == ' ' => {
+                KeyCode::Char(' ') => {
                     if let Some(h) = handle.take() {
                         h.join().unwrap();
                     };
@@ -1366,7 +1366,7 @@ fn micro_macro() {
                 KeyCode::Char('q') | KeyCode::Char('Q') => return,
                 KeyCode::Esc => process::exit(0),
                 KeyCode::Enter => micro_macro_active = !micro_macro_active,
-                KeyCode::Char(c) if c == ' ' => micro_macro_active = !micro_macro_active,
+                KeyCode::Char(' ') => micro_macro_active = !micro_macro_active,
                 _ => {}
             }
         }
@@ -1475,7 +1475,7 @@ fn macro_tool() {
                 }
             } else {
                 let mut spaces = " ";
-                if i >= 11 {
+                if i > 10 {
                     spaces = ""
                 }
                 if i == menu_selected {
@@ -1869,7 +1869,7 @@ fn macro_tool() {
                     KeyCode::Enter => {
                         macro_active = !macro_active;
                     }
-                    KeyCode::Char(c) if c == ' ' => {
+                    KeyCode::Char(' ') => {
                         macro_active = !macro_active;
                     }
                     _ => {}
@@ -2236,7 +2236,7 @@ fn macro_tool() {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                     macro_tool_settings(&"macro".to_string())
                 }
-                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => main(),
                 KeyCode::Char('q') | KeyCode::Char('Q') => return,
                 KeyCode::Esc => process::exit(0),
                 KeyCode::Delete | KeyCode::Backspace => match macro_menu_selected {
@@ -2261,6 +2261,9 @@ fn macro_tool() {
                     0 => {
                         execute!(stdout, cursor::MoveUp(1)).unwrap();
                         execute!(stdout, cursor::MoveToColumn(2)).unwrap();
+                        if macro_menu_options.len() > 10 {
+                            execute!(stdout, cursor::MoveLeft(1)).unwrap();
+                        }
                         print!(
                             "{}{} {}|{} ",
                             SetForegroundColor(get_color("main")),
@@ -2286,7 +2289,7 @@ fn macro_tool() {
                     }
                     _ => macro_tool_macro(&macro_menu_options[macro_menu_selected], &macros_dir),
                 },
-                KeyCode::Char(c) if c == ' ' => match macro_menu_selected {
+                KeyCode::Char(' ') => match macro_menu_selected {
                     0 => {}
                     _ => {
                         let selected_macro = &macro_menu_options[macro_menu_selected];
