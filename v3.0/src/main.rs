@@ -2524,7 +2524,7 @@ fn tetris() {
         score: u32,
         level: u32,
         speed_multiplier_changed: bool,
-        paused: bool,
+        paused: &mut bool,
         game_over: bool,
     ) {
         let settings = Settings::load();
@@ -2599,7 +2599,6 @@ fn tetris() {
                             5 => Some(Color::Blue),
                             6 => Some(Color::DarkGreen),
                             7 => Some(Color::DarkRed),
-                            9 => Some(Color::DarkGrey),
                             _ => Some(get_color("theme")),
                         };
                         if color != last_color {
@@ -2633,11 +2632,7 @@ fn tetris() {
                             0 => line.push_str("  "),
                             9 => {
                                 if settings.tetris_show_ghost {
-                                    line.push_str(&format!(
-                                        "{}▒▒{}",
-                                        SetForegroundColor(Color::DarkGrey),
-                                        SetForegroundColor(get_color("theme"))
-                                    ));
+                                    line.push_str("▒▒")
                                 } else {
                                     line.push_str("  ")
                                 }
@@ -2803,7 +2798,7 @@ fn tetris() {
                     width = board_width * 2 + 2
                 ));
             }
-            if paused {
+            if *paused {
                 let score_text = format!("score {}", score);
                 let level_text = format!("level {}", level);
                 let speed_text = format!(
@@ -2918,6 +2913,7 @@ fn tetris() {
                 ));
             }
         } else {
+            *paused = true;
             let text = format!(
                 "│ {}{}{} │",
                 SetForegroundColor(get_color("main")),
@@ -3276,7 +3272,7 @@ fn tetris() {
                                         score,
                                         level,
                                         speed_multiplier_changed,
-                                        paused,
+                                        &mut paused,
                                         game_over,
                                     );
                                 }
@@ -3290,7 +3286,7 @@ fn tetris() {
                                         score,
                                         level,
                                         speed_multiplier_changed,
-                                        paused,
+                                        &mut paused,
                                         game_over,
                                     );
                                 }
@@ -3324,7 +3320,7 @@ fn tetris() {
                                         score,
                                         level,
                                         speed_multiplier_changed,
-                                        paused,
+                                        &mut paused,
                                         game_over,
                                     );
                                 }
@@ -3338,7 +3334,7 @@ fn tetris() {
                                         score,
                                         level,
                                         speed_multiplier_changed,
-                                        paused,
+                                        &mut paused,
                                         game_over,
                                     );
                                 }
@@ -3366,7 +3362,7 @@ fn tetris() {
                                         score,
                                         level,
                                         speed_multiplier_changed,
-                                        paused,
+                                        &mut paused,
                                         game_over,
                                     );
                                 }
@@ -3395,7 +3391,7 @@ fn tetris() {
                                             score,
                                             level,
                                             speed_multiplier_changed,
-                                            paused,
+                                            &mut paused,
                                             game_over,
                                         );
                                     }
@@ -3438,7 +3434,7 @@ fn tetris() {
                 score,
                 level,
                 speed_multiplier_changed,
-                paused,
+                &mut paused,
                 game_over,
             );
             last_gravity_tick = Instant::now();
@@ -3459,7 +3455,7 @@ fn tetris() {
                 score,
                 level,
                 speed_multiplier_changed,
-                paused,
+                &mut paused,
                 game_over,
             );
             last_render_time = current_time;
