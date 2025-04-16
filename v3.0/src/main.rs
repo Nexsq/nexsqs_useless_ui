@@ -2839,7 +2839,7 @@ fn tetris() {
                     SetForegroundColor(get_color("theme")),
                     " ".repeat(speed_padding_right)
                 );
-                let center_x = (width - 22) / 2;
+                let center_x = (width - 24) / 2;
                 let center_y = (height.saturating_sub(3) + logo_0_lines.len() as u16) / 2;
                 output.push_str(&format!(
                     "{}{}{}{}{}{}{}{}{}{}",
@@ -2866,12 +2866,12 @@ fn tetris() {
                         format!("{} (varied)", settings.tetris_speed_multiplier)
                     }
                 );
-                let score_padding_left = (22 - score_text.len()) / 2;
-                let score_padding_right = 22 - score_padding_left - score_text.len();
-                let level_padding_left = (22 - level_text.len()) / 2;
-                let level_padding_right = 22 - level_padding_left - level_text.len();
-                let speed_padding_left = (22 - speed_text.len()) / 2;
-                let speed_padding_right = 22 - speed_padding_left - speed_text.len();
+                let score_padding_left = (21 - score_text.len()) / 2;
+                let score_padding_right = 21 - score_padding_left - score_text.len();
+                let level_padding_left = (21 - level_text.len()) / 2;
+                let level_padding_right = 21 - level_padding_left - level_text.len();
+                let speed_padding_left = (21 - speed_text.len()) / 2;
+                let speed_padding_right = 21 - speed_padding_left - speed_text.len();
                 let score_line = format!(
                     "│{}{}{}{}{}│",
                     " ".repeat(score_padding_left),
@@ -2896,12 +2896,12 @@ fn tetris() {
                     SetForegroundColor(get_color("theme")),
                     " ".repeat(speed_padding_right)
                 );
-                let center_x = (width - 22) / 2;
+                let center_x = (width - 23) / 2;
                 let center_y = (height.saturating_sub(3) + logo_0_lines.len() as u16) / 2;
                 output.push_str(&format!(
                     "{}{}{}{}{}{}{}{}{}{}",
                     cursor::MoveTo(center_x, center_y),
-                    "┌───── game  over ─────┐",
+                    "┌───── game over ─────┐",
                     cursor::MoveTo(center_x, center_y + 1),
                     score_line,
                     cursor::MoveTo(center_x, center_y + 2),
@@ -2909,7 +2909,7 @@ fn tetris() {
                     cursor::MoveTo(center_x, center_y + 3),
                     speed_line,
                     cursor::MoveTo(center_x, center_y + 4),
-                    "└──────────────────────┘"
+                    "└─────────────────────┘"
                 ));
             }
         } else {
@@ -2920,7 +2920,7 @@ fn tetris() {
                 "window is too small",
                 SetForegroundColor(get_color("theme")),
             );
-            let center_x = (width - 22) / 2;
+            let center_x = (width - 23) / 2;
             let center_y = (height.saturating_sub(3) + logo_0_lines.len() as u16) / 2;
             output.push_str(&format!(
                 "{}{}{}{}{}{}",
@@ -3214,9 +3214,9 @@ fn tetris() {
         let settings = Settings::load();
         if let Some(pressed_key) = get_key() {
             if game_over {
+                needs_rendering = true;
                 match pressed_key {
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
-                        needs_rendering = true;
                         tetris_settings(&mut speed_multiplier_changed);
                     }
                     KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
@@ -3236,7 +3236,6 @@ fn tetris() {
                                 &mut can_hold,
                             );
                             game_over = false;
-                            needs_rendering = true
                         }
                     }
                 }
@@ -3398,6 +3397,8 @@ fn tetris() {
                                 }
                                 _ => needs_rendering = true,
                             }
+                        } else {
+                            needs_rendering = true;
                         }
                     }
                 }
