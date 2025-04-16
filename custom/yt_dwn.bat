@@ -67,7 +67,7 @@ echo.
 if /i "!MODE!"=="mp3" (
     "%YTDLP%" "%url%" !PLMODE! -x --audio-format mp3 -o "%DOWNLOAD_DIR%\%%(title)s.%%(ext)s"
 ) else (
-    "%YTDLP%" "%url%" !PLMODE! -o "%DOWNLOAD_DIR%\%%(title)s.%%(ext)s"
+    "%YTDLP%" "%url%" !PLMODE! -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" -o "%DOWNLOAD_DIR%\%%(title)s.%%(ext)s"
 )
 if errorlevel 1 (
     echo.
