@@ -158,7 +158,7 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>muse_press &lt;mouse key&gt;</code><i> (keeps a given mouse key pressed)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>muse_release &lt;mouse key&gt;</code><i> (releases a given mouse key)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>muse_move &lt;x y&gt;</code><i> (moves cursor to the given coordinates)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i><</span>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i></span>
   <details><summary><span>example macro.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># add comments                           </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
