@@ -182,7 +182,18 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># relative coordinates                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_move 100 100 rel                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br></h6></details>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># loops are possible                     </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>(                                        </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    delay 1000                           </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    # nested loops are also possible     </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    (                                    </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>        delay 1000                       </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    # 5 for five replays                 </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    ) 5                                  </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># leave blank after ")" for infinite loop</code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>)                                        </code><br></h6></details>
   <h4>&nbsp;• tetris</h4>
 
     <span>&nbsp;&nbsp;&nbsp;find out yourself ;)</span>
