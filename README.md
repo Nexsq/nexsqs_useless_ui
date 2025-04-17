@@ -175,10 +175,12 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># do things with mouse                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_press left                         </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># absolute coordinates (not relative)    </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># absolute coordinates                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_move 1000 500                      </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_release left                       </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_click right                        </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># relative coordinates                   </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_move 100 100 rel                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br></h6></details>
   <h4>&nbsp;• tetris</h4>
