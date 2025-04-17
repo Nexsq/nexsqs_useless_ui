@@ -15,7 +15,7 @@ use inputbot::KeybdKey::*;
 use inputbot::{KeybdKey, MouseButton};
 use rand::Rng;
 use serde_derive::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::error::Error;
 use std::fs::{self, File};
@@ -1847,6 +1847,15 @@ fn macro_tool() {
         let mut current_line = 0;
         let mut passed_delay = Instant::now();
         let mut current_delay = 0;
+        struct LoopState {
+            start_line: usize,
+            end_line: usize,
+            replays_left: u64,
+        }
+        let mut loop_stack: Vec<LoopState> = Vec::new();
+        let mut found_loops: Vec<(u64, u64)> = Vec::new();
+        let mut completed_loops: Vec<(u64, u64)> = Vec::new();
+        let mut active_loop_starts = HashSet::new();
         let mut macro_actions: Vec<String> = Vec::new();
         let help_more_string_lines = 1;
         let mut prev_state = HashMap::new();
@@ -1888,7 +1897,11 @@ fn macro_tool() {
                 print_macro_actions(&mut macro_actions);
                 current_delay = 0;
                 if settings.macro_restart_when_pausing {
-                    current_line = 0
+                    current_line = 0;
+                    found_loops.clear();
+                    completed_loops.clear();
+                    loop_stack.clear();
+                    active_loop_starts.clear();
                 }
             }
             if macro_active {
@@ -1919,6 +1932,117 @@ fn macro_tool() {
                                     }
                                 }
                             }
+                            Some(ref cmd) if cmd == "(" => {
+                                if !active_loop_starts.contains(&current_line) {
+                                    active_loop_starts.insert(current_line);
+                                    let start_line = current_line;
+                                    loop_stack.push(LoopState {
+                                        start_line,
+                                        end_line: 0,
+                                        replays_left: 0,
+                                    });
+                                    add_macro_action(
+                                        &mut macro_actions,
+                                        format!("Starting loop at line {}", start_line),
+                                        help_more_string_lines,
+                                    );
+                                }
+                            }
+                            Some(ref cmd) if cmd == ")" => {
+                                if let Some(last_index) = loop_stack.len().checked_sub(1) {
+                                    let top = &mut loop_stack[last_index];
+                                    if top.end_line == 0 {
+                                        top.end_line = current_line;
+                                        if let Some(replays_str) = command_parts.get(1) {
+                                            if let Ok(parsed_replays) = replays_str.parse::<u64>() {
+                                                if parsed_replays > 1 {
+                                                    top.replays_left = parsed_replays - 1;
+                                                    current_line = top.start_line;
+                                                    passed_delay = Instant::now();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!(
+                                                            "Looping back to line {} ({} replays left)",
+                                                            top.start_line, top.replays_left
+                                                        ),
+                                                        help_more_string_lines,
+                                                    );
+                                                    continue;
+                                                }
+                                            }
+                                        } else {
+                                            top.replays_left = u64::MAX;
+                                            current_line = top.start_line;
+                                            passed_delay = Instant::now();
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "Looping back to line {} (∞ infinite)",
+                                                    top.start_line
+                                                ),
+                                                help_more_string_lines,
+                                            );
+                                            continue;
+                                        }
+                                        let finished = loop_stack.pop().unwrap();
+                                        active_loop_starts.remove(&finished.start_line);
+                                        add_macro_action(
+                                            &mut macro_actions,
+                                            format!(
+                                                "Completed loop from line {}",
+                                                finished.start_line
+                                            ),
+                                            help_more_string_lines,
+                                        );
+                                    } else {
+                                        if top.replays_left == u64::MAX {
+                                            current_line = top.start_line;
+                                            passed_delay = Instant::now();
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "Looping back to line {} (infinite)",
+                                                    top.start_line
+                                                ),
+                                                help_more_string_lines,
+                                            );
+                                            continue;
+                                        } else if top.replays_left > 0 {
+                                            top.replays_left -= 1;
+                                            if top.replays_left > 0 {
+                                                current_line = top.start_line;
+                                                passed_delay = Instant::now();
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "Looping back to line {} ({} replays left)",
+                                                        top.start_line, top.replays_left
+                                                    ),
+                                                    help_more_string_lines,
+                                                );
+                                                continue;
+                                            } else {
+                                                let finished = loop_stack.pop().unwrap();
+                                                active_loop_starts.remove(&finished.start_line);
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "Completed loop from line {}",
+                                                        finished.start_line
+                                                    ),
+                                                    help_more_string_lines,
+                                                );
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    add_macro_action(
+                                        &mut macro_actions,
+                                        "Warning: unmatched ')' with no '('!".to_string(),
+                                        help_more_string_lines,
+                                    );
+                                }
+                            }
                             Some(ref cmd) if cmd == "delay" => {
                                 if let Some(delay_str) = command_parts.get(1) {
                                     if let Ok(delay_ms) = delay_str.parse::<u64>() {
@@ -1934,6 +2058,8 @@ fn macro_tool() {
                             Some(ref cmd)
                                 if cmd == "mouse_click"
                                     || cmd == "mouseclick"
+                                    || cmd == "click_mouse"
+                                    || cmd == "clickmouse"
                                     || cmd == "mouse" =>
                             {
                                 if let Some(button_str) = command_parts.get(1) {
@@ -1974,7 +2100,11 @@ fn macro_tool() {
                                 if cmd == "mouse_press"
                                     || cmd == "mousepress"
                                     || cmd == "mouse_hold"
-                                    || cmd == "mousehold" =>
+                                    || cmd == "mousehold"
+                                    || cmd == "press_mouse"
+                                    || cmd == "pressmouse"
+                                    || cmd == "hold_mouse"
+                                    || cmd == "holdmouse" =>
                             {
                                 if let Some(button_str) = command_parts.get(1) {
                                     match button_str.to_lowercase().as_str() {
@@ -2010,7 +2140,12 @@ fn macro_tool() {
                                     }
                                 }
                             }
-                            Some(ref cmd) if cmd == "mouse_release" || cmd == "mouserelease" => {
+                            Some(ref cmd)
+                                if cmd == "mouse_release"
+                                    || cmd == "mouserelease"
+                                    || cmd == "release_mouse"
+                                    || cmd == "releasemouse" =>
+                            {
                                 if let Some(button_str) = command_parts.get(1) {
                                     match button_str.to_lowercase().as_str() {
                                         "left" | "LMB" => {
@@ -2048,6 +2183,8 @@ fn macro_tool() {
                             Some(ref cmd)
                                 if cmd == "mouse_scroll"
                                     || cmd == "mousescroll"
+                                    || cmd == "scroll_mouse"
+                                    || cmd == "scrollmouse"
                                     || cmd == "scroll" =>
                             {
                                 if let Some(length_str) = command_parts.get(1) {
@@ -2064,20 +2201,41 @@ fn macro_tool() {
                             Some(ref cmd)
                                 if cmd == "mouse_move"
                                     || cmd == "mousemove"
-                                    || cmd == "move"
+                                    || cmd == "move_mouse"
+                                    || cmd == "movemouse"
                                     || cmd == "move_to"
-                                    || cmd == "moveto" =>
+                                    || cmd == "moveto"
+                                    || cmd == "move" =>
                             {
                                 if let Some(x_str) = command_parts.get(1) {
                                     if let Some(y_str) = command_parts.get(2) {
                                         if let Ok(x) = x_str.parse::<i32>() {
                                             if let Ok(y) = y_str.parse::<i32>() {
-                                                enigo.move_mouse(x, y, Coordinate::Abs).ok();
-                                                add_macro_action(
-                                                    &mut macro_actions,
-                                                    format!("Moved mouse to ({}, {})", x, y),
-                                                    help_more_string_lines,
-                                                );
+                                                let mut relative = false;
+                                                if let Some(mode_str) = command_parts.get(3) {
+                                                    if mode_str.to_lowercase().as_str() == "rel"
+                                                        || mode_str.to_lowercase().as_str()
+                                                            == "relative"
+                                                        || mode_str.to_lowercase().as_str() == "r"
+                                                    {
+                                                        relative = true
+                                                    }
+                                                }
+                                                if relative {
+                                                    enigo.move_mouse(x, y, Coordinate::Rel).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Moved mouse by ({}, {})", x, y),
+                                                        help_more_string_lines,
+                                                    );
+                                                } else {
+                                                    enigo.move_mouse(x, y, Coordinate::Abs).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Moved mouse to ({}, {})", x, y),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
                                             }
                                         }
                                     }
@@ -2165,6 +2323,10 @@ fn macro_tool() {
                         current_line += 1
                     } else {
                         current_line = 0;
+                        found_loops.clear();
+                        completed_loops.clear();
+                        loop_stack.clear();
+                        active_loop_starts.clear();
                         if !settings.macro_loop {
                             macro_active = false;
                         }
