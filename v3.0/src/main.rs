@@ -1977,7 +1977,7 @@ fn macro_tool() {
                                             add_macro_action(
                                                 &mut macro_actions,
                                                 format!(
-                                                    "Looping back to line {} (∞ infinite)",
+                                                    "Looping back to line {} (infinite)",
                                                     top.start_line
                                                 ),
                                                 help_more_string_lines,
