@@ -1762,7 +1762,7 @@ fn macro_tool() {
                             SetForegroundColor(get_color("theme")),
                         )
                     );
-                } else if macro_action.starts_with("Unknown command:") {
+                } else if macro_action.starts_with("[warning]") {
                     print!(
                         "{}",
                         &format!(
@@ -2038,7 +2038,7 @@ fn macro_tool() {
                                 } else {
                                     add_macro_action(
                                         &mut macro_actions,
-                                        "Warning: unmatched ')' with no '('!".to_string(),
+                                        "[warning] Unmatched ')' with no '('".to_string(),
                                         help_more_string_lines,
                                     );
                                 }
@@ -2090,7 +2090,10 @@ fn macro_tool() {
                                         }
                                         _ => add_macro_action(
                                             &mut macro_actions,
-                                            format!("Unknown mouse button: {}", button_str),
+                                            format!(
+                                                "[warning] Unknown mouse button: {}",
+                                                button_str
+                                            ),
                                             help_more_string_lines,
                                         ),
                                     }
@@ -2134,7 +2137,10 @@ fn macro_tool() {
                                         }
                                         _ => add_macro_action(
                                             &mut macro_actions,
-                                            format!("Unknown mouse button: {}", button_str),
+                                            format!(
+                                                "[warning] Unknown mouse button: {}",
+                                                button_str
+                                            ),
                                             help_more_string_lines,
                                         ),
                                     }
@@ -2174,7 +2180,10 @@ fn macro_tool() {
                                         }
                                         _ => add_macro_action(
                                             &mut macro_actions,
-                                            format!("Unknown mouse button: {}", button_str),
+                                            format!(
+                                                "[warning] Unknown mouse button: {}",
+                                                button_str
+                                            ),
                                             help_more_string_lines,
                                         ),
                                     }
@@ -2253,7 +2262,7 @@ fn macro_tool() {
                                     } else {
                                         add_macro_action(
                                             &mut macro_actions,
-                                            format!("Unknown key: {}", key_str),
+                                            format!("[warning] Unknown key: {}", key_str),
                                             help_more_string_lines,
                                         );
                                     }
@@ -2271,7 +2280,7 @@ fn macro_tool() {
                                     } else {
                                         add_macro_action(
                                             &mut macro_actions,
-                                            format!("Unknown key: {}", key_str),
+                                            format!("[warning] Unknown key: {}", key_str),
                                             help_more_string_lines,
                                         );
                                     }
@@ -2289,7 +2298,7 @@ fn macro_tool() {
                                     } else {
                                         add_macro_action(
                                             &mut macro_actions,
-                                            format!("Unknown key: {}", key_str),
+                                            format!("[warning] Unknown key: {}", key_str),
                                             help_more_string_lines,
                                         );
                                     }
@@ -2311,7 +2320,7 @@ fn macro_tool() {
                             _ => {
                                 add_macro_action(
                                     &mut macro_actions,
-                                    format!("Unknown command: {}", trimmed_line),
+                                    format!("[warning] Unknown command: {}", trimmed_line),
                                     help_more_string_lines,
                                 );
                             }
