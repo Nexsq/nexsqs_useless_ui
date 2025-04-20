@@ -1439,20 +1439,40 @@ fn micro_macro() {
 }
 
 fn macro_tool() {
-    fn render_macro_tool_menu(menu_selected: usize, menu_options: &[&str]) {
+    fn render_macro_tool_menu(menu_selected: usize, menu_options: &[&str], current_dir: &Path) {
         let mut stdout = io::stdout();
         let help_string = String::from(
             "| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | select: $[ent]$ |",
         );
         let help_more_string = String::from(
-            r#"| select: $[0-9]$ | edit: $[space]$ | delete: $[del]/[backspace]$ |
-| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
+            r#"| select: $[0-9]$ | edit: $[space]$ | delete: $[del]/[backspace]$ | back: $[←]/[→]$ |
+    | return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[↓]$ |"#,
         );
         let (width, _) = terminal::size().unwrap();
         let mut output = String::new();
-        output.push_str(&render_top("macro", Some("macro_settings"), false));
+        let current_folder_name = if current_dir == Path::new("NUUI_config/Macros") {
+            "macro".to_string()
+        } else {
+            current_dir
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string()
+        };
+        output.push_str(&render_top(
+            &current_folder_name,
+            Some("macro_settings"),
+            false,
+        ));
         for i in 0..menu_options.len() {
-            if i == 0 {
+            let mut prefix = "|";
+            if i >= 2 {
+                let item_path = current_dir.join(&menu_options[i]);
+                if item_path.is_dir() {
+                    prefix = "•"
+                }
+            }
+            if i == 0 || i == 1 {
                 if i == menu_selected {
                     output.push_str(&format!(
                         "│{}{}   › {}  {}{}{}│\n",
@@ -1465,7 +1485,7 @@ fn macro_tool() {
                     ));
                 } else {
                     output.push_str(&format!(
-                        "│{}   {}| {}{}{}│\n",
+                        "│{}   {}|{} {}{}│\n",
                         SetForegroundColor(get_color("main")),
                         SetForegroundColor(Color::DarkGrey),
                         SetForegroundColor(get_color("theme")),
@@ -1475,7 +1495,7 @@ fn macro_tool() {
                 }
             } else {
                 let mut spaces = " ";
-                if i > 10 {
+                if i > 11 {
                     spaces = ""
                 }
                 if i == menu_selected {
@@ -1484,7 +1504,7 @@ fn macro_tool() {
                         SetBackgroundColor(get_color("main")),
                         SetForegroundColor(Color::Black),
                         spaces,
-                        i - 1,
+                        i - 2,
                         menu_options[i],
                         SetForegroundColor(get_color("theme")),
                         SetBackgroundColor(Color::Reset),
@@ -1492,11 +1512,12 @@ fn macro_tool() {
                     ));
                 } else {
                     output.push_str(&format!(
-                        "│{}{}{}{} | {}{}{}│\n",
+                        "│{}{}{}{} {} {}{}{}│\n",
                         SetForegroundColor(get_color("main")),
                         spaces,
-                        i - 1,
+                        i - 2,
                         SetForegroundColor(Color::DarkGrey),
+                        prefix,
                         SetForegroundColor(get_color("theme")),
                         menu_options[i],
                         cursor::MoveToColumn(width)
@@ -2358,14 +2379,37 @@ fn macro_tool() {
             }
         }
     }
+    fn refresh_macro_menu(
+        macro_menu_options: &mut Vec<String>,
+        macro_menu_selected: &mut usize,
+        current_dir: &PathBuf,
+    ) {
+        macro_menu_options.clear();
+        macro_menu_options.push("new_folder".to_string());
+        macro_menu_options.push("new_macro".to_string());
+        if let Ok(entries) = fs::read_dir(&current_dir) {
+            for entry in entries.flatten() {
+                if let Some(stem) = entry.path().file_stem() {
+                    let stem_str = stem.to_string_lossy().into_owned();
+                    macro_menu_options.push(stem_str);
+                }
+            }
+        }
+        if *macro_menu_selected >= macro_menu_options.len() {
+            *macro_menu_selected = macro_menu_options.len().saturating_sub(1);
+        }
+    }
     let mut stdout = io::stdout();
-    let mut macro_menu_options: Vec<String> = vec!["new_macro".to_string()];
+    let mut macro_menu_options: Vec<String> =
+        vec!["new_folder".to_string(), "new_macro".to_string()];
     let mut macro_menu_selected = 0;
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
     let mut needs_rendering = true;
     let dir = Path::new("NUUI_config");
     let macros_dir = dir.join("Macros");
+    let mut current_dir = macros_dir.clone();
+    let mut path_stack = vec![macros_dir.clone()];
     if !macros_dir.exists() {
         fs::create_dir_all(&macros_dir)
             .expect("Failed to create macros directory inside config directory");
@@ -2404,6 +2448,18 @@ fn macro_tool() {
                         macro_menu_selected = 0
                     }
                 }
+                KeyCode::Left | KeyCode::Right => {
+                    if path_stack.len() > 1 {
+                        path_stack.pop();
+                        current_dir = path_stack.last().unwrap().clone();
+                        refresh_macro_menu(
+                            &mut macro_menu_options,
+                            &mut macro_menu_selected,
+                            &current_dir,
+                        );
+                        macro_menu_selected = 0;
+                    }
+                }
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                     macro_tool_settings(&"macro".to_string())
                 }
@@ -2411,21 +2467,31 @@ fn macro_tool() {
                 KeyCode::Char('q') | KeyCode::Char('Q') => return,
                 KeyCode::Esc => process::exit(0),
                 KeyCode::Delete | KeyCode::Backspace => match macro_menu_selected {
-                    0 => {}
+                    0 | 1 => {}
                     _ => {
-                        let selected_macro = &macro_menu_options[macro_menu_selected];
-                        let file_to_delete = macros_dir.join(format!("{}.txt", selected_macro));
-                        match fs::remove_file(&file_to_delete) {
-                            Ok(_) => {
-                                macro_menu_options.remove(macro_menu_selected);
-                                if macro_menu_selected >= macro_menu_options.len() {
-                                    macro_menu_selected = macro_menu_options.len() - 1;
+                        let selected_item = &macro_menu_options[macro_menu_selected];
+                        let file_candidate = current_dir.join(format!("{}.txt", selected_item));
+                        let folder_candidate = current_dir.join(selected_item);
+                        if file_candidate.is_file() {
+                            match fs::remove_file(&file_candidate) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("Failed to delete file {}: {}", selected_item, e);
                                 }
                             }
-                            Err(e) => {
-                                eprintln!("Failed to delete file {}: {}", selected_macro, e);
+                        } else if folder_candidate.is_dir() {
+                            match fs::remove_dir_all(&folder_candidate) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("Failed to delete folder {}: {}", selected_item, e);
+                                }
                             }
                         }
+                        refresh_macro_menu(
+                            &mut macro_menu_options,
+                            &mut macro_menu_selected,
+                            &current_dir,
+                        );
                     }
                 },
                 KeyCode::Enter => match macro_menu_selected {
@@ -2438,49 +2504,104 @@ fn macro_tool() {
                         print!(
                             "{}{} {}|{} ",
                             SetForegroundColor(get_color("main")),
-                            macro_menu_options.len() - 1,
+                            macro_menu_options.len() - 2,
+                            SetForegroundColor(Color::DarkGrey),
+                            SetForegroundColor(get_color("theme"))
+                        );
+                        stdout.flush().unwrap();
+                        let mut folder_name = String::new();
+                        io::stdin().read_line(&mut folder_name).unwrap();
+                        let folder_name = folder_name.trim().replace(" ", "_");
+                        if !folder_name.is_empty() {
+                            let new_folder_path = current_dir.join(&folder_name);
+                            match fs::create_dir_all(&new_folder_path) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("Failed to create folder: {}", e);
+                                }
+                            }
+                        }
+                        refresh_macro_menu(
+                            &mut macro_menu_options,
+                            &mut macro_menu_selected,
+                            &current_dir,
+                        );
+                        macro_menu_selected = 0;
+                    }
+                    1 => {
+                        execute!(stdout, cursor::MoveUp(1)).unwrap();
+                        execute!(stdout, cursor::MoveToColumn(2)).unwrap();
+                        if macro_menu_options.len() > 10 {
+                            execute!(stdout, cursor::MoveLeft(1)).unwrap();
+                        }
+                        print!(
+                            "{}{} {}|{} ",
+                            SetForegroundColor(get_color("main")),
+                            macro_menu_options.len() - 2,
                             SetForegroundColor(Color::DarkGrey),
                             SetForegroundColor(get_color("theme"))
                         );
                         stdout.flush().unwrap();
                         let mut name = String::new();
                         io::stdin().read_line(&mut name).unwrap();
-                        let name = name.trim();
-                        let name = name.replace(" ", "_");
+                        let name = name.trim().replace(" ", "_");
                         if !name.is_empty() {
-                            let new_file_path = macros_dir.join(format!("{}.txt", name));
+                            let new_file_path = current_dir.join(format!("{}.txt", name));
                             match File::create(&new_file_path) {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    eprintln!("Failed to create the file: {}", e);
+                                    eprintln!("Failed to create file: {}", e);
                                 }
                             }
                         }
-                        macro_tool()
+                        refresh_macro_menu(
+                            &mut macro_menu_options,
+                            &mut macro_menu_selected,
+                            &current_dir,
+                        );
+                        macro_menu_selected = 0;
                     }
-                    _ => macro_tool_macro(&macro_menu_options[macro_menu_selected], &macros_dir),
+                    _ => {
+                        let selected_item = &macro_menu_options[macro_menu_selected];
+                        let selected_path = current_dir.join(selected_item);
+                        if selected_path.is_dir() {
+                            path_stack.push(selected_path.clone());
+                            current_dir = selected_path;
+                            refresh_macro_menu(
+                                &mut macro_menu_options,
+                                &mut macro_menu_selected,
+                                &current_dir,
+                            );
+                            macro_menu_selected = 0;
+                        } else {
+                            macro_tool_macro(selected_item, &current_dir);
+                        }
+                    }
                 },
                 KeyCode::Char(' ') => match macro_menu_selected {
-                    0 => {}
+                    0 | 1 => {}
                     _ => {
-                        let selected_macro = &macro_menu_options[macro_menu_selected];
-                        let file_to_open = macros_dir.join(format!("{}.txt", selected_macro));
-                        match run_file(file_to_open.to_str().unwrap()) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                eprintln!("Failed to open file {}: {}", selected_macro, e);
+                        let selected_item = &macro_menu_options[macro_menu_selected];
+                        let selected_path = current_dir.join(format!("{}.txt", selected_item));
+                        if selected_path.is_file() {
+                            match run_file(selected_path.to_str().unwrap()) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("Failed to open file {}: {}", selected_item, e);
+                                }
                             }
                         }
                     }
                 },
                 KeyCode::Char(c) if c.is_digit(10) => {
                     let num = c.to_digit(10).unwrap() as usize;
-                    if num < macro_menu_options.len() {
-                        macro_menu_selected = num + 1
-                    }
-                    match macro_menu_selected {
-                        _ => {
-                            macro_tool_macro(&macro_menu_options[macro_menu_selected], &macros_dir)
+                    if num < macro_menu_options.len() - 2 {
+                        macro_menu_selected = num + 2;
+                        match macro_menu_selected {
+                            _ => macro_tool_macro(
+                                &macro_menu_options[macro_menu_selected],
+                                &macros_dir,
+                            ),
                         }
                     }
                 }
@@ -2500,6 +2621,7 @@ fn macro_tool() {
                     .iter()
                     .map(|s| s.as_str())
                     .collect::<Vec<&str>>(),
+                &current_dir,
             );
             last_render_time = current_time;
             last_width = width;
@@ -4968,7 +5090,7 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
     output.push_str(&render_top("menu", None, false));
     for i in 0..menu_options.len() {
         let mut spaces = " ";
-        if i >= 10 {
+        if i > 10 {
             spaces = ""
         }
         if i == menu_selected {
