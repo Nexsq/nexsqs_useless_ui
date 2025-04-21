@@ -2385,8 +2385,8 @@ fn macro_tool() {
         current_dir: &PathBuf,
     ) {
         macro_menu_options.clear();
-        macro_menu_options.push("new_folder".to_string());
         macro_menu_options.push("new_macro".to_string());
+        macro_menu_options.push("new_folder".to_string());
         if let Ok(entries) = fs::read_dir(&current_dir) {
             for entry in entries.flatten() {
                 if let Some(stem) = entry.path().file_stem() {
@@ -2401,7 +2401,7 @@ fn macro_tool() {
     }
     let mut stdout = io::stdout();
     let mut macro_menu_options: Vec<String> =
-        vec!["new_folder".to_string(), "new_macro".to_string()];
+        vec!["new_macro".to_string(), "new_folder".to_string()];
     let mut macro_menu_selected = 0;
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
@@ -2509,15 +2509,15 @@ fn macro_tool() {
                             SetForegroundColor(get_color("theme"))
                         );
                         stdout.flush().unwrap();
-                        let mut folder_name = String::new();
-                        io::stdin().read_line(&mut folder_name).unwrap();
-                        let folder_name = folder_name.trim().replace(" ", "_");
-                        if !folder_name.is_empty() {
-                            let new_folder_path = current_dir.join(&folder_name);
-                            match fs::create_dir_all(&new_folder_path) {
+                        let mut name = String::new();
+                        io::stdin().read_line(&mut name).unwrap();
+                        let name = name.trim().replace(" ", "_");
+                        if !name.is_empty() {
+                            let new_file_path = current_dir.join(format!("{}.txt", name));
+                            match File::create(&new_file_path) {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    eprintln!("Failed to create folder: {}", e);
+                                    eprintln!("Failed to create file: {}", e);
                                 }
                             }
                         }
@@ -2535,22 +2535,22 @@ fn macro_tool() {
                             execute!(stdout, cursor::MoveLeft(1)).unwrap();
                         }
                         print!(
-                            "{}{} {}|{} ",
+                            "{}{} {}•{} ",
                             SetForegroundColor(get_color("main")),
                             macro_menu_options.len() - 2,
                             SetForegroundColor(Color::DarkGrey),
                             SetForegroundColor(get_color("theme"))
                         );
                         stdout.flush().unwrap();
-                        let mut name = String::new();
-                        io::stdin().read_line(&mut name).unwrap();
-                        let name = name.trim().replace(" ", "_");
-                        if !name.is_empty() {
-                            let new_file_path = current_dir.join(format!("{}.txt", name));
-                            match File::create(&new_file_path) {
+                        let mut folder_name = String::new();
+                        io::stdin().read_line(&mut folder_name).unwrap();
+                        let folder_name = folder_name.trim().replace(" ", "_");
+                        if !folder_name.is_empty() {
+                            let new_folder_path = current_dir.join(&folder_name);
+                            match fs::create_dir_all(&new_folder_path) {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    eprintln!("Failed to create file: {}", e);
+                                    eprintln!("Failed to create folder: {}", e);
                                 }
                             }
                         }
@@ -5090,7 +5090,7 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
     output.push_str(&render_top("menu", None, false));
     for i in 0..menu_options.len() {
         let mut spaces = " ";
-        if i > 10 {
+        if i >= 10 {
             spaces = ""
         }
         if i == menu_selected {
