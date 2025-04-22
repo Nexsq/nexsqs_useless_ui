@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-set "BASE_DIR=%~dp0yt_dwn"
+set "BASE_DIR=%~dp0yt_dwn_dir"
 set "YTDLP=%BASE_DIR%\yt-dlp.exe"
 set "DOWNLOAD_DIR=%BASE_DIR%\yt_dwnlds"
 if not exist "%BASE_DIR%" (
