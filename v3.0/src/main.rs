@@ -2486,7 +2486,7 @@ fn macro_tool() {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                     macro_tool_settings(&"macro".to_string())
                 }
-                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => main(),
+                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                 KeyCode::Char('q') | KeyCode::Char('Q') => return,
                 KeyCode::Esc => process::exit(0),
                 KeyCode::Delete | KeyCode::Backspace => match macro_menu_selected {
