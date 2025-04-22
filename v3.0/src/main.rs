@@ -1,6 +1,6 @@
 use chrono::Local;
 use crossterm::cursor;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use crossterm::{
     style::{Color, SetBackgroundColor, SetForegroundColor},
@@ -86,7 +86,7 @@ struct Settings {
     game_of_life_show_generation: bool,
     hide_help: bool,
     show_config_files: bool,
-    custom_options: Vec<String>,
+    options: Vec<String>,
 }
 impl Settings {
     fn new() -> Self {
@@ -109,7 +109,14 @@ impl Settings {
             game_of_life_show_generation: true,
             hide_help: false,
             show_config_files: false,
-            custom_options: Vec::new(),
+            options: vec![
+                "ping_tool".to_string(),
+                "port_scan".to_string(),
+                "micro_macro".to_string(),
+                "macro".to_string(),
+                "tetris".to_string(),
+                "game_of_life".to_string(),
+            ],
         }
     }
     fn load() -> Self {
@@ -225,26 +232,42 @@ impl Settings {
         self.show_config_files = new_value;
         self.save();
     }
-    fn add_custom_option(&mut self, path: &str) {
-        self.custom_options.push(path.to_string());
+    fn add_option(&mut self, path: &str) {
+        self.options.push(path.to_string());
         self.save();
     }
-    fn clear_custom_options(&mut self) {
-        self.custom_options.pop();
-        self.save();
+    fn remove_option(&mut self, index: usize) {
+        let protected_options = [
+            "ping_tool",
+            "port_scan",
+            "micro_macro",
+            "macro",
+            "tetris",
+            "game_of_life",
+        ];
+        if let Some(option) = self.options.get(index) {
+            if !protected_options.contains(&option.as_str()) {
+                self.options.remove(index);
+                self.save();
+            }
+        }
     }
 }
 
-fn get_key() -> Option<KeyCode> {
+fn get_key() -> Option<(KeyCode, KeyModifiers)> {
     if event::poll(Duration::ZERO).unwrap() {
-        if let Event::Key(KeyEvent { code, kind, .. }) = event::read().unwrap() {
-            if kind == KeyEventKind::Press {
-                if code == KeyCode::Char('h') || code == KeyCode::Char('H') {
-                    let mut help_open = HELP_OPEN.lock().unwrap();
-                    *help_open = !*help_open;
-                }
-                return Some(code);
+        if let Event::Key(KeyEvent {
+            code,
+            modifiers,
+            kind: KeyEventKind::Press,
+            ..
+        }) = event::read().unwrap()
+        {
+            if code == KeyCode::Char('h') || code == KeyCode::Char('H') {
+                let mut help_open = HELP_OPEN.lock().unwrap();
+                *help_open = !*help_open;
             }
+            return Some((code, modifiers));
         }
     }
     None
@@ -686,9 +709,9 @@ fn ping_tool() {
     }
     print_pings(&mut pings);
     loop {
-        if let Some(pressed_key) = get_key() {
+        if let Some((code, _)) = get_key() {
             needs_rendering = true;
-            match pressed_key {
+            match code {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                 KeyCode::Char('q') | KeyCode::Char('Q') => return,
@@ -923,9 +946,9 @@ fn port_scan() {
     print_port_scans(&PORT_SCANS.lock().unwrap());
     let mut handle: Option<thread::JoinHandle<()>> = None;
     loop {
-        if let Some(pressed_key) = get_key() {
+        if let Some((code, _)) = get_key() {
             needs_rendering = true;
-            match pressed_key {
+            match code {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                     if let Some(h) = handle.take() {
                         h.join().unwrap();
@@ -1188,9 +1211,9 @@ fn micro_macro() {
         let (mut last_width, mut last_height) = terminal::size().unwrap();
         let mut needs_rendering = true;
         loop {
-            if let Some(pressed_key) = get_key() {
+            if let Some((code, _)) = get_key() {
                 needs_rendering = true;
-                match pressed_key {
+                match code {
                     KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                         if micro_macro_settings_menu_selected > 0 {
                             micro_macro_settings_menu_selected -= 1
@@ -1358,9 +1381,9 @@ fn micro_macro() {
     let mut prev_state = HashMap::new();
     loop {
         let settings = Settings::load();
-        if let Some(pressed_key) = get_key() {
+        if let Some((code, _)) = get_key() {
             needs_rendering = true;
-            match pressed_key {
+            match code {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => micro_macro_settings(),
                 KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => return,
                 KeyCode::Char('q') | KeyCode::Char('Q') => return,
@@ -1370,9 +1393,9 @@ fn micro_macro() {
                 _ => {}
             }
         }
-        if let Some(pressed_key) = background_get_key(&mut prev_state) {
+        if let Some(code) = background_get_key(&mut prev_state) {
             if let Some(hotkey_enum) = string_to_key(&settings.micro_macro_hotkey) {
-                if pressed_key == hotkey_enum {
+                if code == hotkey_enum {
                     micro_macro_active = !micro_macro_active;
                 }
             }
@@ -1618,9 +1641,9 @@ fn macro_tool() {
         let (mut last_width, mut last_height) = terminal::size().unwrap();
         let mut needs_rendering = true;
         loop {
-            if let Some(pressed_key) = get_key() {
+            if let Some((code, _)) = get_key() {
                 needs_rendering = true;
-                match pressed_key {
+                match code {
                     KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                         if macro_settings_menu_selected > 0 {
                             macro_settings_menu_selected -= 1
@@ -1883,9 +1906,9 @@ fn macro_tool() {
         let mut enigo = Enigo::new(&EnigoSettings::default()).unwrap();
         loop {
             let settings = Settings::load();
-            if let Some(pressed_key) = get_key() {
+            if let Some((code, _)) = get_key() {
                 needs_rendering = true;
-                match pressed_key {
+                match code {
                     KeyCode::Left | KeyCode::Right => return,
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                         macro_tool_settings(macro_path)
@@ -1905,9 +1928,9 @@ fn macro_tool() {
                     _ => {}
                 }
             }
-            if let Some(pressed_key) = background_get_key(&mut prev_state) {
+            if let Some(code) = background_get_key(&mut prev_state) {
                 if let Some(hotkey_enum) = string_to_key(&settings.macro_hotkey) {
-                    if pressed_key == hotkey_enum {
+                    if code == hotkey_enum {
                         macro_active = !macro_active;
                     }
                 }
@@ -2431,9 +2454,9 @@ fn macro_tool() {
         }
     }
     loop {
-        if let Some(pressed_key) = get_key() {
+        if let Some((code, _)) = get_key() {
             needs_rendering = true;
-            match pressed_key {
+            match code {
                 KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                     if macro_menu_selected > 0 {
                         macro_menu_selected -= 1
@@ -2725,9 +2748,9 @@ fn tetris() {
         let (mut last_width, mut last_height) = terminal::size().unwrap();
         let mut needs_rendering = true;
         loop {
-            if let Some(pressed_key) = get_key() {
+            if let Some((code, _)) = get_key() {
                 needs_rendering = true;
-                match pressed_key {
+                match code {
                     KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                         if tetris_settings_menu_selected > 0 {
                             tetris_settings_menu_selected -= 1
@@ -3505,10 +3528,10 @@ fn tetris() {
     let mut needs_rendering = true;
     loop {
         let settings = Settings::load();
-        if let Some(pressed_key) = get_key() {
+        if let Some((code, _)) = get_key() {
             if game_over {
                 needs_rendering = true;
-                match pressed_key {
+                match code {
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                         tetris_settings(&mut speed_multiplier_changed);
                     }
@@ -3533,7 +3556,7 @@ fn tetris() {
                     }
                 }
             } else {
-                match pressed_key {
+                match code {
                     KeyCode::Char('p') | KeyCode::Char('P') => {
                         paused = !paused;
                         needs_rendering = true
@@ -3553,7 +3576,7 @@ fn tetris() {
                     KeyCode::Esc => process::exit(0),
                     _ => {
                         if !paused {
-                            match pressed_key {
+                            match code {
                                 KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                                     rotate_piece(&mut current_piece, &mut table);
                                     print_table(
@@ -3874,9 +3897,9 @@ fn game_of_life() {
         let (mut last_width, mut last_height) = terminal::size().unwrap();
         let mut needs_rendering = true;
         loop {
-            if let Some(pressed_key) = get_key() {
+            if let Some((code, _)) = get_key() {
                 needs_rendering = true;
-                match pressed_key {
+                match code {
                     KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                         if game_of_life_settings_menu_selected > 0 {
                             game_of_life_settings_menu_selected -= 1
@@ -4212,9 +4235,9 @@ fn game_of_life() {
         if !simulating {
             saved_input = table.clone()
         }
-        if let Some(pressed_key) = get_key() {
+        if let Some((code, _)) = get_key() {
             if !simulating {
-                match pressed_key {
+                match code {
                     KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                         if cursor_row > 0 {
                             cursor_row -= 1;
@@ -4277,7 +4300,7 @@ fn game_of_life() {
                     paused,
                 )
             } else {
-                match pressed_key {
+                match code {
                     KeyCode::Up
                     | KeyCode::Char('w')
                     | KeyCode::Char('W')
@@ -4724,9 +4747,9 @@ fn sys_fetch() {
     execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
     stdout.flush().unwrap();
     loop {
-        if let Some(pressed_key) = get_key() {
+        if let Some((code, _)) = get_key() {
             needs_rendering = true;
-            match pressed_key {
+            match code {
                 KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => {
                     main();
                     return;
@@ -4839,17 +4862,6 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 }
                 settings.set_show_config_files(!settings.show_config_files);
             }
-            8 => {
-                let mut custom_option_path = String::new();
-                print!("Enter file path: ");
-                io::stdout().flush().unwrap();
-                io::stdin().read_line(&mut custom_option_path).unwrap();
-                let custom_option_path = custom_option_path.trim();
-                if !custom_option_path.is_empty() {
-                    settings.add_custom_option(&custom_option_path.to_string())
-                };
-            }
-            9 => settings.clear_custom_options(),
             _ => {}
         },
         "right" => match settings_menu_selected {
@@ -4882,17 +4894,6 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 }
                 settings.set_show_config_files(!settings.show_config_files);
             }
-            8 => {
-                let mut custom_option_path = String::new();
-                print!("Enter file path: ");
-                io::stdout().flush().unwrap();
-                io::stdin().read_line(&mut custom_option_path).unwrap();
-                let custom_option_path = custom_option_path.trim();
-                if !custom_option_path.is_empty() {
-                    settings.add_custom_option(&custom_option_path.to_string())
-                };
-            }
-            9 => settings.clear_custom_options(),
             _ => {}
         },
         _ => {}
@@ -4946,8 +4947,6 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
                     } else {
                         "0 ".to_string()
                     }
-                } else if menu_options[i] == "clear_custom" {
-                    settings.custom_options.len().to_string() + " "
                 } else {
                     " ".to_string()
                 },
@@ -4989,17 +4988,15 @@ fn settings_menu() {
         "macro_hotkey",
         "hide_help",
         "show_config_files",
-        "add_custom",
-        "clear_custom",
     ];
     let mut settings_menu_selected = 0;
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
     let mut needs_rendering = true;
     loop {
-        if let Some(pressed_key) = get_key() {
+        if let Some((code, _)) = get_key() {
             needs_rendering = true;
-            match pressed_key {
+            match code {
                 KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                     if settings_menu_selected > 0 {
                         settings_menu_selected -= 1
@@ -5050,20 +5047,16 @@ fn settings_menu() {
     }
 }
 
-fn run_menu_selected(menu_selected: usize, menu_options: &[&str]) {
-    let settings = Settings::load();
-    match menu_selected {
-        0 => ping_tool(),
-        1 => port_scan(),
-        2 => micro_macro(),
-        3 => macro_tool(),
-        4 => tetris(),
-        5 => game_of_life(),
-        _ => {
-            let _ = run_file(
-                &settings.custom_options
-                    [menu_selected - (menu_options.len() - settings.custom_options.len())],
-            );
+fn run_menu_selected(menu_selected: usize, menu_options: &[String]) {
+    match menu_options[menu_selected].as_str() {
+        "ping_tool" => ping_tool(),
+        "port_scan" => port_scan(),
+        "micro_macro" => micro_macro(),
+        "macro" => macro_tool(),
+        "tetris" => tetris(),
+        "game_of_life" => game_of_life(),
+        path => {
+            let _ = run_file(path);
         }
     }
 }
@@ -5076,50 +5069,64 @@ fn run_file(path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn render_menu(menu_selected: usize, menu_options: &[&str]) {
+fn render_menu(menu_selected: usize, shift_selected: bool) {
+    let settings = Settings::load();
     let help_string = String::from(
         "| quit: $[esc]$ | change tab: $[a]/[d]$ | scroll: $[w]/[s]$ | select: $[ent]$ |",
     );
     let help_more_string = String::from(
-        r#"| select: $[0-9]$ |
-| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[←]/[↓]/[→]$ |"#,
+        r#"| rearrange: $[shift]+[↑/w]/[↓/s]$ | add_option: $[c]$ | remove_option: $[del]/[backspace]$ |
+| return: $[q]$ | change tab: $[backtab]/[tab]$ | scroll: $[↑]/[←]/[↓]/[→]$ | select: $[0-9]$ |"#,
     );
     let mut stdout = io::stdout();
     let (width, _) = terminal::size().unwrap();
     let mut output = String::new();
     output.push_str(&render_top("menu", None, false));
-    for i in 0..menu_options.len() {
+    for i in 0..settings.options.len() {
         let mut spaces = " ";
         if i >= 10 {
-            spaces = ""
+            spaces = "";
         }
+        if i == menu_selected && shift_selected {
+            spaces.to_string().push_str(" ");
+        }
+        let shift_indent = if i == menu_selected && shift_selected {
+            " "
+        } else {
+            ""
+        };
+        let path = Path::new(&settings.options[i]);
+        let filename = path.file_name().unwrap_or_default().to_string_lossy();
+        let prefix = if path.is_dir() { "•" } else { "|" };
         if i == menu_selected {
             output.push_str(&format!(
-                "│{}{}{}{} › {}  {}{}{}│\n",
+                "│{}{}{}{}{} › {}  {}{}{}│\n",
                 SetForegroundColor(Color::Black),
                 SetBackgroundColor(get_color("main")),
                 spaces,
+                shift_indent,
                 i,
-                menu_options[i],
+                filename,
                 SetForegroundColor(get_color("theme")),
                 SetBackgroundColor(Color::Reset),
                 cursor::MoveToColumn(width)
             ));
         } else {
             output.push_str(&format!(
-                "│{}{}{} {}| {}{}{}│\n",
+                "│{}{}{} {}{} {}{}{}│\n",
                 SetForegroundColor(get_color("main")),
                 spaces,
                 i,
                 SetForegroundColor(Color::DarkGrey),
+                prefix,
                 SetForegroundColor(get_color("theme")),
-                menu_options[i],
+                filename,
                 cursor::MoveToColumn(width)
             ));
         }
     }
-    output.push_str(&&render_bottom(
-        menu_options.len() as u16,
+    output.push_str(&render_bottom(
+        settings.options.len() as u16,
         help_string,
         help_more_string,
     ));
@@ -5132,81 +5139,99 @@ fn render_menu(menu_selected: usize, menu_options: &[&str]) {
 
 fn main() {
     terminal::enable_raw_mode().unwrap();
-    let settings = Settings::load();
-    let mut menu_options: Vec<String> = vec![
-        "ping_tool".to_string(),
-        "port_scan".to_string(),
-        "micro_macro".to_string(),
-        "macro".to_string(),
-        "tetris".to_string(),
-        "game_of_life".to_string(),
-    ];
-    for path in &settings.custom_options {
-        let path_obj = Path::new(path);
-        if let Some(file_name) = path_obj.file_name() {
-            if let Some(name_str) = file_name.to_str() {
-                menu_options.push(name_str.to_string());
-            }
-        }
-    }
+    let mut settings = Settings::load();
     let mut menu_selected = 0;
+    let mut shift_held = false;
     let mut last_render_time = get_time();
     let (mut last_width, mut last_height) = terminal::size().unwrap();
     let mut needs_rendering = true;
     loop {
-        if let Some(pressed_key) = get_key() {
+        if let Some((code, modifiers)) = get_key() {
+            shift_held = modifiers.contains(KeyModifiers::SHIFT);
             needs_rendering = true;
-            match pressed_key {
-                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
+            match (code, modifiers) {
+                (KeyCode::Up, KeyModifiers::SHIFT) => {
                     if menu_selected > 0 {
-                        menu_selected -= 1
-                    } else {
-                        menu_selected = menu_options.len() - 1
+                        settings.options.swap(menu_selected, menu_selected - 1);
+                        menu_selected -= 1;
+                        settings.save();
                     }
                 }
-                KeyCode::Left => {
+                (KeyCode::Down, KeyModifiers::SHIFT) => {
+                    if menu_selected < settings.options.len() - 1 {
+                        settings.options.swap(menu_selected, menu_selected + 1);
+                        menu_selected += 1;
+                        settings.save();
+                    }
+                }
+                (KeyCode::Up, _) | (KeyCode::Char('w'), _) | (KeyCode::Char('W'), _) => {
                     if menu_selected > 0 {
-                        menu_selected -= 1
+                        menu_selected -= 1;
                     } else {
-                        menu_selected = menu_options.len() - 1
+                        menu_selected = settings.options.len() - 1;
                     }
                 }
-                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
-                    if menu_selected < menu_options.len() - 1 {
-                        menu_selected += 1
+                (KeyCode::Left, _) => {
+                    if menu_selected > 0 {
+                        menu_selected -= 1;
                     } else {
-                        menu_selected = 0
+                        menu_selected = settings.options.len() - 1;
                     }
                 }
-                KeyCode::Right => {
-                    if menu_selected < menu_options.len() - 1 {
-                        menu_selected += 1
+                (KeyCode::Down, _) | (KeyCode::Char('s'), _) | (KeyCode::Char('S'), _) => {
+                    if menu_selected < settings.options.len() - 1 {
+                        menu_selected += 1;
                     } else {
-                        menu_selected = 0
+                        menu_selected = 0;
                     }
                 }
-                KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
-                KeyCode::BackTab | KeyCode::Char('a') | KeyCode::Char('A') => sys_fetch(),
-                KeyCode::Esc => process::exit(0),
-                KeyCode::Enter => run_menu_selected(
-                    menu_selected,
-                    &menu_options
-                        .iter()
-                        .map(|s| s.as_str())
-                        .collect::<Vec<&str>>(),
-                ),
-                KeyCode::Char(c) if c.is_digit(10) => {
+                (KeyCode::Right, _) => {
+                    if menu_selected < settings.options.len() - 1 {
+                        menu_selected += 1;
+                    } else {
+                        menu_selected = 0;
+                    }
+                }
+                (KeyCode::Char('c'), _) | (KeyCode::Char('C'), _) => {
+                    execute!(io::stdout(), cursor::MoveUp(1), cursor::MoveToColumn(2)).unwrap();
+                    if settings.options.len() >= 10 {
+                        execute!(io::stdout(), cursor::MoveLeft(1)).unwrap();
+                    }
+                    print!(
+                        "{}{} {}|{} ",
+                        SetForegroundColor(get_color("main")),
+                        settings.options.len(),
+                        SetForegroundColor(Color::DarkGrey),
+                        SetForegroundColor(get_color("theme"))
+                    );
+                    let mut custom_option_path = String::new();
+                    io::stdout().flush().unwrap();
+                    io::stdin().read_line(&mut custom_option_path).unwrap();
+                    let custom_option_path = custom_option_path.trim();
+                    if !custom_option_path.is_empty() {
+                        settings.add_option(&custom_option_path.to_string());
+                    }
+                }
+                (KeyCode::Delete, _) | (KeyCode::Backspace, _) => {
+                    settings.remove_option(menu_selected);
+                    if menu_selected > settings.options.len() - 1 {
+                        menu_selected -= 1;
+                    }
+                }
+                (KeyCode::Tab, _) | (KeyCode::Char('d'), _) | (KeyCode::Char('D'), _) => {
+                    settings_menu()
+                }
+                (KeyCode::BackTab, _) | (KeyCode::Char('a'), _) | (KeyCode::Char('A'), _) => {
+                    sys_fetch()
+                }
+                (KeyCode::Esc, _) => process::exit(0),
+                (KeyCode::Enter, _) => run_menu_selected(menu_selected, &settings.options),
+                (KeyCode::Char(c), _) if c.is_digit(10) => {
                     let num = c.to_digit(10).unwrap() as usize;
-                    if num < menu_options.len() {
-                        menu_selected = num
+                    if num < settings.options.len() {
+                        menu_selected = num;
                     }
-                    run_menu_selected(
-                        menu_selected,
-                        &menu_options
-                            .iter()
-                            .map(|s| s.as_str())
-                            .collect::<Vec<&str>>(),
-                    )
+                    run_menu_selected(menu_selected, &settings.options);
                 }
                 _ => {}
             }
@@ -5218,13 +5243,7 @@ fn main() {
             || current_time != last_render_time
             || needs_rendering
         {
-            render_menu(
-                menu_selected,
-                &menu_options
-                    .iter()
-                    .map(|s| s.as_str())
-                    .collect::<Vec<&str>>(),
-            );
+            render_menu(menu_selected, shift_held);
             last_render_time = current_time;
             last_width = width;
             last_height = height;
