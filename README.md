@@ -3,7 +3,6 @@
 <details>
   <summary><h4>Version 1.0</h4></summary>
   <h6>&nbsp;(written in chimera powershell)</h6>
-  <h6>&nbsp;(please do not use this version, there is no point in that)</h6>
   <h4>&nbsp;• ping</h4>
     <span>&nbsp;&nbsp;&nbsp;pings a selected IP every settings.ping_delay<br>
     &nbsp;&nbsp;&nbsp;needs a refresh to ping (not intentional)</span>
