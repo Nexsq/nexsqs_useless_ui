@@ -2620,11 +2620,19 @@ fn macro_tool() {
                     let num = c.to_digit(10).unwrap() as usize;
                     if num < macro_menu_options.len() - 2 {
                         macro_menu_selected = num + 2;
-                        match macro_menu_selected {
-                            _ => macro_tool_macro(
-                                &macro_menu_options[macro_menu_selected],
-                                &macros_dir,
-                            ),
+                        let selected_item = &macro_menu_options[macro_menu_selected];
+                        let selected_path = current_dir.join(selected_item);
+                        if selected_path.is_dir() {
+                            path_stack.push(selected_path.clone());
+                            current_dir = selected_path;
+                            refresh_macro_menu(
+                                &mut macro_menu_options,
+                                &mut macro_menu_selected,
+                                &current_dir,
+                            );
+                            macro_menu_selected = 0;
+                        } else {
+                            macro_tool_macro(selected_item, &current_dir);
                         }
                     }
                 }
