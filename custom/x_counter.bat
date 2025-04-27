@@ -34,7 +34,7 @@ while ($true) { ^
     if ([KeyDetector]::GetAsyncKeyState($keyToCount) -band 0x8000) { ^
         $count++; ^
         Write-Host (\"`r{0} count: {1} \" -f '%counter_title%', $count) -NoNewline -ForegroundColor DarkRed; ^
-        Start-Sleep -Milliseconds 200; ^
+        Start-Sleep -Milliseconds 500; ^
     } ^
     Start-Sleep -Milliseconds 50; ^
 }"
