@@ -1,40 +1,129 @@
 @echo off
-set /p "counter_title=counter name: "
+set /p "counter_title=name: "
 cls
 powershell -noprofile -executionpolicy bypass -command ^
-"Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class KeyDetector { [DllImport(\"user32.dll\")] public static extern short GetAsyncKeyState(int vKey); [DllImport(\"user32.dll\")] public static extern IntPtr GetForegroundWindow(); [DllImport(\"user32.dll\")] public static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId); }'; ^
-function Get-KeyName($code) { ^
-    $keyMap = @{ ^
-        0x08='[BACKSPACE]'; 0x09='[TAB]'; 0x0D='[ENTER]'; 0x1B='[ESC]'; ^
-        0x20='[SPACE]'; 0x25='[LEFT]'; 0x26='[UP]'; 0x27='[RIGHT]'; 0x28='[DOWN]'; ^
-        0x41='A'; 0x42='B'; 0x43='C'; 0x44='D'; 0x45='E'; 0x46='F'; 0x47='G'; ^
-        0x48='H'; 0x49='I'; 0x4A='J'; 0x4B='K'; 0x4C='L'; 0x4D='M'; 0x4E='N'; ^
-        0x4F='O'; 0x50='P'; 0x51='Q'; 0x52='R'; 0x53='S'; 0x54='T'; 0x55='U'; ^
-        0x56='V'; 0x57='W'; 0x58='X'; 0x59='Y'; 0x5A='Z'; 0x30='0'; 0x31='1'; ^
-        0x32='2'; 0x33='3'; 0x34='4'; 0x35='5'; 0x36='6'; 0x37='7'; 0x38='8'; ^
-        0x39='9' ^
-    }; ^
-    if ($keyMap.ContainsKey($code)) { return $keyMap[$code] } else { return ('0x{0:X2}' -f $code) } ^
-}; ^
-Write-Host \"[!] press any key to count it for: %counter_title%\" -ForegroundColor DarkYellow; ^
-$keyToCount = $null; $count = 0; ^
+"Add-Type -AssemblyName System.Windows.Forms; ^
+Add-Type -AssemblyName System.Drawing; ^
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class KeyDetector { [DllImport(\"user32.dll\")] public static extern short GetAsyncKeyState(int vKey); [DllImport(\"user32.dll\")] public static extern IntPtr GetForegroundWindow(); [DllImport(\"user32.dll\")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count); }'; ^
+$count = 0; ^
+$keyToCount = $null; ^
+$form = $null; ^
+$label = $null; ^
+$consoleTitle = 'Counting: ' + '%counter_title%'; ^
+$keyWasPressed = $false; ^
+$keyWasPressedDecrement = $false; ^
+$consoleWindow = [System.Diagnostics.Process]::GetCurrentProcess().MainWindowHandle; ^
+function Get-ActiveWindowTitle { ^
+    $hwnd = [KeyDetector]::GetForegroundWindow(); ^
+    if ($hwnd -ne [IntPtr]::Zero) { ^
+        $title = New-Object System.Text.StringBuilder(256); ^
+        [void][KeyDetector]::GetWindowText($hwnd, $title, $title.Capacity); ^
+        return $title.ToString(); ^
+    } ^
+    return $null; ^
+} ^
+Write-Host \"[!] press any key to use it for %counter_title%\" -ForegroundColor DarkYellow; ^
 while (!$keyToCount) { ^
     for ($i=1; $i -le 254; $i++) { ^
         if ([KeyDetector]::GetAsyncKeyState($i) -band 0x8000) { ^
             $keyToCount = $i; ^
-            $keyName = Get-KeyName $i; ^
-            Write-Host (\"[+] now counting $keyName`n\") -ForegroundColor DarkGreen; ^
+            $keyName = if ($i -ge 65 -and $i -le 90) { [char]$i } else { ('0x{0:X2}' -f $i) }; ^
+            Write-Host (\"`n[+] now counting at $keyName\") -ForegroundColor DarkGreen; ^
+            Write-Host \"[+] [space] or [ent] for AOT window\" -ForegroundColor DarkGreen; ^
+            Write-Host \"[+] [backspace] or [del] to decrease`n\" -ForegroundColor DarkGreen; ^
             break; ^
         } ^
     } ^
     Start-Sleep -Milliseconds 50; ^
-}; ^
+} ^
+while ([KeyDetector]::GetAsyncKeyState($keyToCount) -band 0x8000) { ^
+    Start-Sleep -Milliseconds 10; ^
+} ^
+$Host.UI.RawUI.WindowTitle = $consoleTitle; ^
 Write-Host (\"`r{0} count: {1} \" -f '%counter_title%', $count) -NoNewline -ForegroundColor DarkRed; ^
-while ($true) { ^
-    if ([KeyDetector]::GetAsyncKeyState($keyToCount) -band 0x8000) { ^
-        $count++; ^
-        Write-Host (\"`r{0} count: {1} \" -f '%counter_title%', $count) -NoNewline -ForegroundColor DarkRed; ^
-        Start-Sleep -Milliseconds 500; ^
+try { ^
+    while ($true) { ^
+        $keyState = [KeyDetector]::GetAsyncKeyState($keyToCount) -band 0x8000; ^
+        ^
+        if ($keyState -and -not $keyWasPressed) { ^
+            $count++; ^
+            $keyWasPressed = $true; ^
+            Write-Host (\"`r{0} count: {1} \" -f '%counter_title%', $count) -NoNewline -ForegroundColor DarkRed; ^
+            if ($form -and $form.Visible) { ^
+                $label.Text = $count.ToString(); ^
+                [System.Windows.Forms.Application]::DoEvents(); ^
+            } ^
+        } ^
+        elseif (-not $keyState) { ^
+            $keyWasPressed = $false; ^
+        } ^
+        ^
+        $activeWindow = Get-ActiveWindowTitle; ^
+        if ($activeWindow -eq $consoleTitle) { ^
+            if ([KeyDetector]::GetAsyncKeyState(0x20) -band 0x8000 -or [KeyDetector]::GetAsyncKeyState(0x0D) -band 0x8000) { ^
+                if ($form -eq $null) { ^
+                    $form = New-Object System.Windows.Forms.Form; ^
+                    $form.Text = '%counter_title%'; ^
+                    $form.TopMost = $true; ^
+                    $form.FormBorderStyle = 'FixedSingle'; ^
+                    $form.MinimizeBox = $false; ^
+                    $form.MaximizeBox = $false; ^
+                    $form.ControlBox = $true; ^
+                    $form.ShowInTaskbar = $true; ^
+                    $form.Size = New-Object System.Drawing.Size(160, 80); ^
+                    $form.StartPosition = 'Manual'; ^
+                    $screenWidth = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea.Width; ^
+                    $form.Location = New-Object System.Drawing.Point(($screenWidth - 180), 20); ^
+                    $form.BackColor = [System.Drawing.Color]::Black; ^
+                    $form.ForeColor = [System.Drawing.Color]::White; ^
+                    ^
+                    $label = New-Object System.Windows.Forms.Label; ^
+                    $label.Font = New-Object System.Drawing.Font('Consolas', 24, [System.Drawing.FontStyle]::Bold); ^
+                    $label.TextAlign = [System.Windows.Forms.HorizontalAlignment]::Center; ^
+                    $label.Dock = [System.Windows.Forms.DockStyle]::Fill; ^
+                    $label.Text = $count.ToString(); ^
+                    $form.Controls.Add($label); ^
+                    ^
+                    $form.Add_FormClosing({ ^
+                        $form.Hide(); ^
+                        $_.Cancel = $true; ^
+                    }); ^
+                    ^
+                    $form.Show(); ^
+                } ^
+                elseif ($form.Visible) { ^
+                    $form.Hide(); ^
+                } ^
+                else { ^
+                    $form.Show(); ^
+                } ^
+                Start-Sleep -Milliseconds 100; ^
+            } ^
+            ^
+            $backspacePressed = [KeyDetector]::GetAsyncKeyState(0x08) -band 0x8000; ^
+            $deletePressed = [KeyDetector]::GetAsyncKeyState(0x2E) -band 0x8000; ^
+            if (($backspacePressed -or $deletePressed) -and (-not $keyWasPressedDecrement)) { ^
+                if ($count -gt 0) { ^
+                    $count--; ^
+                    Write-Host (\"`r{0} count: {1} \" -f '%counter_title%', $count) -NoNewline -ForegroundColor DarkRed; ^
+                    if ($form -and $form.Visible) { ^
+                        $label.Text = $count.ToString(); ^
+                        [System.Windows.Forms.Application]::DoEvents(); ^
+                    } ^
+                } ^
+                $keyWasPressedDecrement = $true; ^
+            } ^
+            elseif (-not ($backspacePressed -or $deletePressed)) { ^
+                $keyWasPressedDecrement = $false; ^
+            } ^
+        } ^
+        ^
+        if ($form -and $form.Visible) { ^
+            $label.Text = $count.ToString(); ^
+            [System.Windows.Forms.Application]::DoEvents(); ^
+        } ^
+        Start-Sleep -Milliseconds 10; ^
     } ^
-    Start-Sleep -Milliseconds 50; ^
+} finally { ^
+    if ($form) { $form.Close(); $form.Dispose(); } ^
 }"
