@@ -86,6 +86,8 @@ struct Settings {
     game_of_life_show_generation: bool,
     hide_help: bool,
     show_config_files: bool,
+    show_clock: bool,
+    show_size: bool,
     options: Vec<String>,
 }
 impl Settings {
@@ -109,6 +111,8 @@ impl Settings {
             game_of_life_show_generation: true,
             hide_help: false,
             show_config_files: false,
+            show_clock: true,
+            show_size: false,
             options: vec![
                 "ping_tool".to_string(),
                 "port_scan".to_string(),
@@ -230,6 +234,14 @@ impl Settings {
     }
     fn set_show_config_files(&mut self, new_value: bool) {
         self.show_config_files = new_value;
+        self.save();
+    }
+    fn set_show_clock(&mut self, new_value: bool) {
+        self.show_clock = new_value;
+        self.save();
+    }
+    fn set_show_size(&mut self, new_value: bool) {
+        self.show_size = new_value;
         self.save();
     }
     fn add_option(&mut self, path: &str) {
@@ -389,7 +401,8 @@ fn clear() {
 }
 
 fn render_top(current_option: &str, new_option: Option<&str>, new_option_selected: bool) -> String {
-    let (width, _) = terminal::size().unwrap();
+    let settings = Settings::load();
+    let (width, height) = terminal::size().unwrap();
     let current_time = get_time();
     let (logo_0, logo_1, logo_2) = logo();
     let logo_0_lines: Vec<&str> = logo_0.lines().collect();
@@ -430,7 +443,25 @@ fn render_top(current_option: &str, new_option: Option<&str>, new_option_selecte
         SetForegroundColor(get_color("theme")),
         cursor::MoveUp(logo_0_lines.len() as u16 - 1),
         cursor::MoveToColumn(width - 7),
-        current_time
+        if settings.show_clock {
+            current_time
+        } else {
+            "".to_string()
+        }
+    ));
+    output.push_str(&format!(
+        "{}{}{}{}{}",
+        SetForegroundColor(get_color("theme")),
+        cursor::MoveDown(1),
+        cursor::MoveToColumn(
+            width - width.to_string().len() as u16 - height.to_string().len() as u16 - 3
+        ),
+        if settings.show_size {
+            format!("{}x{}", width, height)
+        } else {
+            "".to_string()
+        },
+        cursor::MoveUp(1)
     ));
     output.push_str(&format!(
         "{}{}",
@@ -537,12 +568,13 @@ fn render_bottom(mid_length: u16, help_string: String, help_more_string: String)
                 output.push_str(&format!(
                     "{}",
                     cursor::MoveToColumn(
-                        width / 2
-                            - help_more_string_lines[i]
+                        (width / 2).saturating_sub(
+                            (help_more_string_lines[i]
                                 .chars()
                                 .filter(|&c| c != '$')
-                                .count() as u16
+                                .count() as u16)
                                 / 2
+                        )
                     )
                 ));
                 let help_more_string_lines_parts: Vec<&str> =
@@ -4870,6 +4902,8 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 }
                 settings.set_show_config_files(!settings.show_config_files);
             }
+            8 => settings.set_show_clock(!settings.show_clock),
+            9 => settings.set_show_size(!settings.show_size),
             _ => {}
         },
         "right" => match settings_menu_selected {
@@ -4902,6 +4936,8 @@ fn run_settings_menu_selected(settings_menu_selected: usize, direction: &str) {
                 }
                 settings.set_show_config_files(!settings.show_config_files);
             }
+            8 => settings.set_show_clock(!settings.show_clock),
+            9 => settings.set_show_size(!settings.show_size),
             _ => {}
         },
         _ => {}
@@ -4955,6 +4991,18 @@ fn render_settings_menu(menu_selected: usize, menu_options: &[&str]) {
                     } else {
                         "0 ".to_string()
                     }
+                } else if menu_options[i] == "show_clock" {
+                    if settings.show_clock {
+                        "1 ".to_string()
+                    } else {
+                        "0 ".to_string()
+                    }
+                } else if menu_options[i] == "show_size" {
+                    if settings.show_size {
+                        "1 ".to_string()
+                    } else {
+                        "0 ".to_string()
+                    }
                 } else {
                     " ".to_string()
                 },
@@ -4996,6 +5044,8 @@ fn settings_menu() {
         "macro_hotkey",
         "hide_help",
         "show_config_files",
+        "show_clock",
+        "show_size",
     ];
     let mut settings_menu_selected = 0;
     let mut last_render_time = get_time();
