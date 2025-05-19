@@ -8,7 +8,7 @@ while (!$key) { ^
     for ($i=1; $i -le 254; $i++) { ^
         if ([KeyDetector]::GetAsyncKeyState($i) -band 0x8000) { ^
             $key = $i; ^
-            Write-Host (\"`n[+] capturing at $([char]$i) (KeyCode: $i)`n\") -ForegroundColor DarkGreen; ^
+            Write-Host (\"`n[+] capturing at KeyCode: $i`n\") -ForegroundColor DarkGreen; ^
             break; ^
         } ^
     } ^
@@ -18,7 +18,7 @@ while ($true) { ^
     if ([KeyDetector]::GetAsyncKeyState($key) -band 0x8000) { ^
         $pos = [System.Windows.Forms.Cursor]::Position; ^
         [System.Windows.Forms.Clipboard]::SetText(\"$($pos.X) $($pos.Y)\"); ^
-        Write-Host (\"r[+] copied: X: $($pos.X), Y: $($pos.Y)\") -ForegroundColor DarkRed; ^
+        Write-Host (\"[+] copied: X: $($pos.X), Y: $($pos.Y)\") -ForegroundColor DarkRed; ^
         while ([KeyDetector]::GetAsyncKeyState($key) -band 0x8000) { Start-Sleep -Milliseconds 10 } ^
     } ^
     Start-Sleep -Milliseconds 10; ^
