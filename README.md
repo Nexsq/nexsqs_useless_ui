@@ -158,7 +158,7 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_release &lt;mouse key&gt;</code><i> (releases a given mouse key)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_move &lt;x y&gt;</code><i> (moves cursor to the given coordinates)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_scroll &lt;amount&gt;</code><i> (scrolls the mouse wheel)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i></span>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>(, ) &lt;replays (blank for infinite)&gt;</code><i> (loops the code inside brackets)</i></span>
   <details><summary><span>example macro.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># add comments                           </code><br>
