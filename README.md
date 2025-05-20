@@ -154,10 +154,12 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>press &lt;key&gt;</code><i> (keeps a given key pressed)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>release &lt;key&gt;</code><i> (releases a given key)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_click &lt;mouse key&gt;</code><i> (clicks a given mouse key)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>muse_press &lt;mouse key&gt;</code><i> (keeps a given mouse key pressed)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>muse_release &lt;mouse key&gt;</code><i> (releases a given mouse key)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>muse_move &lt;x y&gt;</code><i> (moves cursor to the given coordinates)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_press &lt;mouse key&gt;</code><i> (keeps a given mouse key pressed)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_release &lt;mouse key&gt;</code><i> (releases a given mouse key)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_move &lt;x y&gt;</code><i> (moves cursor to the given coordinates)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_scroll &lt;amount&gt;</code><i> (scrolls the mouse wheel)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i></span>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>(, ) &lt;replays (blank for infinite)&gt;</code><i> (loops the code inside brackets)</i></span>
   <details><summary><span>example macro.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># add comments                           </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
@@ -180,6 +182,8 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_click right                        </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># relative coordinates                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_move 100 100 rel                   </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_scroll 5                           </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_scroll -5                          </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
