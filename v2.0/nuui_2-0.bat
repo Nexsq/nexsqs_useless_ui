@@ -62,7 +62,7 @@ if (-not $darkTheme) {
 }
 $bg = $Host.UI.RawUI.BackgroundColor
 
-$name = "Nexsq's Useless UI v2.0"
+$name = "Nexsq's Useless UI v2.12"
 $logo = @(
 "                     +-.         "
 "                    -ssooo.      "
