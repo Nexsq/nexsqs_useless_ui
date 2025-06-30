@@ -1,4 +1,3 @@
-UPDATE
 <# : Batch portion
 @echo off & setlocal enabledelayedexpansion
 
