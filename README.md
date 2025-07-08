@@ -167,6 +167,12 @@
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># add comments                           </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># create variables                       </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>let var = 3                              </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># update variables                       </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>let var = $var + 2                       </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># paste text:                            </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>press ctrl                               </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>click v                                  </code><br>
@@ -185,7 +191,7 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_click right                        </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># relative coordinates                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_move 100 100 rel                   </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_scroll 5                           </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_scroll $var                        </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>mouse_scroll -5                          </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
