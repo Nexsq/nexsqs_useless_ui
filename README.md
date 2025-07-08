@@ -173,6 +173,11 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># update variables                       </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>let var = $var + 2                       </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># create if block                        </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>if $var > 3 {                            </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># condition met                          </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>}                                        </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># paste text:                            </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>press ctrl                               </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>click v                                  </code><br>
@@ -198,12 +203,12 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># loops are possible                     </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>(                                        </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  delay 1000                             </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  # nested loops are also possible       </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  (                                      </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    delay 1000                           </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    # nested loops are also possible     </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    (                                    </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>        delay 1000                       </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    # 5 for five replays                 </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    ) 5                                  </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  # 5 for five replays                   </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  ) 5                                    </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># leave blank after ")" for infinite loop</code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>)                                        </code><br></h6></details>
   <h4>&nbsp;• tetris</h4>
