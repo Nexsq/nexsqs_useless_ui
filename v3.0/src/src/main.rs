@@ -1838,7 +1838,7 @@ fn macro_tool() {
                             SetForegroundColor(get_color("theme")),
                         )
                     );
-                } else if macro_action.starts_with("[warning]") {
+                } else if macro_action.starts_with("[!]") {
                     print!(
                         "{}",
                         &format!(
@@ -2086,7 +2086,7 @@ fn macro_tool() {
                                                     add_macro_action(
                                                         &mut macro_actions,
                                                         format!(
-                                                            "[warning] Variable not defined: {}",
+                                                            "[!] Variable not defined: {}",
                                                             var_name
                                                         ),
                                                         help_more_string_lines,
@@ -2139,7 +2139,7 @@ fn macro_tool() {
                                                 add_macro_action(
                                                     &mut macro_actions,
                                                     format!(
-                                                        "[warning] Variable not defined: {}",
+                                                        "[!] Variable not defined: {}",
                                                         var_name
                                                     ),
                                                     help_more_string_lines,
@@ -2157,7 +2157,7 @@ fn macro_tool() {
                                 } else {
                                     add_macro_action(
                                         &mut macro_actions,
-                                        "[warning] Invalid variable usage".to_string(),
+                                        "[!] Invalid variable usage".to_string(),
                                         help_more_string_lines,
                                     );
                                 }
@@ -2196,7 +2196,7 @@ fn macro_tool() {
                                                             add_macro_action(
                                                                 &mut macro_actions,
                                                                 format!(
-                                                                    "Looping back to line {} ({} replays left)",
+                                                                    "Looping back to line: {} ({} replays left)",
                                                                     top.start_line, top.replays_left
                                                                 ),
                                                                 help_more_string_lines,
@@ -2206,7 +2206,10 @@ fn macro_tool() {
                                                     } else {
                                                         add_macro_action(
                                                             &mut macro_actions,
-                                                            format!("[warning] Invalid replay count: {}", resolved_val),
+                                                            format!(
+                                                                "[!] Invalid replay count: {}",
+                                                                resolved_val
+                                                            ),
                                                             help_more_string_lines,
                                                         );
                                                     }
@@ -2215,7 +2218,7 @@ fn macro_tool() {
                                                     add_macro_action(
                                                         &mut macro_actions,
                                                         format!(
-                                                            "[warning] Variable not defined: {}",
+                                                            "[!] Variable not defined: {}",
                                                             var_name
                                                         ),
                                                         help_more_string_lines,
@@ -2229,7 +2232,7 @@ fn macro_tool() {
                                             add_macro_action(
                                                 &mut macro_actions,
                                                 format!(
-                                                    "Looping back to line {} (infinite)",
+                                                    "Looping back to line: {} (infinite)",
                                                     top.start_line
                                                 ),
                                                 help_more_string_lines,
@@ -2241,7 +2244,7 @@ fn macro_tool() {
                                         add_macro_action(
                                             &mut macro_actions,
                                             format!(
-                                                "Completed loop from line {}",
+                                                "Completed loop from line: {}",
                                                 finished.start_line
                                             ),
                                             help_more_string_lines,
@@ -2253,7 +2256,7 @@ fn macro_tool() {
                                             add_macro_action(
                                                 &mut macro_actions,
                                                 format!(
-                                                    "Looping back to line {} (infinite)",
+                                                    "Looping back to line: {} (infinite)",
                                                     top.start_line
                                                 ),
                                                 help_more_string_lines,
@@ -2267,7 +2270,7 @@ fn macro_tool() {
                                                 add_macro_action(
                                                     &mut macro_actions,
                                                     format!(
-                                                        "Looping back to line {} ({} replays left)",
+                                                        "Looping back to line: {} ({} replays left)",
                                                         top.start_line, top.replays_left
                                                     ),
                                                     help_more_string_lines,
@@ -2279,7 +2282,7 @@ fn macro_tool() {
                                                 add_macro_action(
                                                     &mut macro_actions,
                                                     format!(
-                                                        "Completed loop from line {}",
+                                                        "Completed loop from line: {}",
                                                         finished.start_line
                                                     ),
                                                     help_more_string_lines,
@@ -2290,7 +2293,7 @@ fn macro_tool() {
                                 } else {
                                     add_macro_action(
                                         &mut macro_actions,
-                                        "[warning] Unmatched ')' with no '('".to_string(),
+                                        "[!] Unmatched ')'".to_string(),
                                         help_more_string_lines,
                                     );
                                 }
@@ -2303,7 +2306,7 @@ fn macro_tool() {
                                 if command_parts.len() < 5 || command_parts.last() != Some(&"{") {
                                     add_macro_action(
                                         &mut macro_actions,
-                                        "[warning] Invalid if: syntax is 'if [var] [op] [value] {{'".to_string(),
+                                        "[!] Invalid if usage".to_string(),
                                         help_more_string_lines,
                                     );
                                     current_line += 1;
@@ -2334,7 +2337,7 @@ fn macro_tool() {
                                     Err(e) => {
                                         add_macro_action(
                                             &mut macro_actions,
-                                            format!("[warning] Condition error: {}", e),
+                                            format!("[!] Condition error: {}", e),
                                             help_more_string_lines,
                                         );
                                     }
@@ -2351,7 +2354,7 @@ fn macro_tool() {
                                 if if_stack.pop().is_none() {
                                     add_macro_action(
                                         &mut macro_actions,
-                                        "[warning] Unmatched '}'".to_string(),
+                                        "[!] Unmatched '}'".to_string(),
                                         help_more_string_lines,
                                     );
                                 }
@@ -2379,10 +2382,7 @@ fn macro_tool() {
                                             } else {
                                                 add_macro_action(
                                                     &mut macro_actions,
-                                                    format!(
-                                                        "[warning] Invalid line value: {}",
-                                                        resolved
-                                                    ),
+                                                    format!("[!] Invalid line value: {}", resolved),
                                                     help_more_string_lines,
                                                 );
                                             }
@@ -2390,10 +2390,7 @@ fn macro_tool() {
                                         Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    var_name
-                                                ),
+                                                format!("[!] Variable not defined: {}", var_name),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2415,7 +2412,7 @@ fn macro_tool() {
                                                 add_macro_action(
                                                     &mut macro_actions,
                                                     format!(
-                                                        "[warning] Invalid delay value: {}",
+                                                        "[!] Invalid delay value: {}",
                                                         resolved
                                                     ),
                                                     help_more_string_lines,
@@ -2425,10 +2422,7 @@ fn macro_tool() {
                                         Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    var_name
-                                                ),
+                                                format!("[!] Variable not defined: {}", var_name),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2473,7 +2467,7 @@ fn macro_tool() {
                                                 _ => add_macro_action(
                                                     &mut macro_actions,
                                                     format!(
-                                                        "[warning] Unknown mouse button: {}",
+                                                        "[!] Unknown mouse button: {}",
                                                         button_str
                                                     ),
                                                     help_more_string_lines,
@@ -2483,10 +2477,7 @@ fn macro_tool() {
                                         Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    var_name
-                                                ),
+                                                format!("[!] Variable not defined: {}", var_name),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2534,7 +2525,7 @@ fn macro_tool() {
                                                 _ => add_macro_action(
                                                     &mut macro_actions,
                                                     format!(
-                                                        "[warning] Unknown mouse button: {}",
+                                                        "[!] Unknown mouse button: {}",
                                                         button_str
                                                     ),
                                                     help_more_string_lines,
@@ -2544,10 +2535,7 @@ fn macro_tool() {
                                         Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    var_name
-                                                ),
+                                                format!("[!] Variable not defined: {}", var_name),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2591,7 +2579,7 @@ fn macro_tool() {
                                                 _ => add_macro_action(
                                                     &mut macro_actions,
                                                     format!(
-                                                        "[warning] Unknown mouse button: {}",
+                                                        "[!] Unknown mouse button: {}",
                                                         button_str
                                                     ),
                                                     help_more_string_lines,
@@ -2601,10 +2589,7 @@ fn macro_tool() {
                                         Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    var_name
-                                                ),
+                                                format!("[!] Variable not defined: {}", var_name),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2632,7 +2617,7 @@ fn macro_tool() {
                                                 add_macro_action(
                                                     &mut macro_actions,
                                                     format!(
-                                                        "[warning] Invalid scroll value: {}",
+                                                        "[!] Invalid scroll value: {}",
                                                         resolved
                                                     ),
                                                     help_more_string_lines,
@@ -2642,10 +2627,7 @@ fn macro_tool() {
                                         Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    var_name
-                                                ),
+                                                format!("[!] Variable not defined: {}", var_name),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2697,7 +2679,7 @@ fn macro_tool() {
                                                 add_macro_action(
                                                     &mut macro_actions,
                                                     format!(
-                                                        "[warning] Invalid coordinates: {}, {}",
+                                                        "[!] Invalid coordinates: {}, {}",
                                                         x_str, y_str
                                                     ),
                                                     help_more_string_lines,
@@ -2707,10 +2689,7 @@ fn macro_tool() {
                                         (Err(missing), _) | (_, Err(missing)) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    missing
-                                                ),
+                                                format!("[!] Variable not defined: {}", missing),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2731,7 +2710,7 @@ fn macro_tool() {
                                             } else {
                                                 add_macro_action(
                                                     &mut macro_actions,
-                                                    format!("[warning] Unknown key: {}", key_str),
+                                                    format!("[!] Unknown key: {}", key_str),
                                                     help_more_string_lines,
                                                 );
                                             }
@@ -2739,10 +2718,7 @@ fn macro_tool() {
                                         Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    var_name
-                                                ),
+                                                format!("[!] Variable not defined: {}", var_name),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2763,7 +2739,7 @@ fn macro_tool() {
                                             } else {
                                                 add_macro_action(
                                                     &mut macro_actions,
-                                                    format!("[warning] Unknown key: {}", key_str),
+                                                    format!("[!] Unknown key: {}", key_str),
                                                     help_more_string_lines,
                                                 );
                                             }
@@ -2771,10 +2747,7 @@ fn macro_tool() {
                                         Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    var_name
-                                                ),
+                                                format!("[!] Variable not defined: {}", var_name),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2795,7 +2768,7 @@ fn macro_tool() {
                                             } else {
                                                 add_macro_action(
                                                     &mut macro_actions,
-                                                    format!("[warning] Unknown key: {}", key_str),
+                                                    format!("[!] Unknown key: {}", key_str),
                                                     help_more_string_lines,
                                                 );
                                             }
@@ -2803,10 +2776,7 @@ fn macro_tool() {
                                         Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!(
-                                                    "[warning] Variable not defined: {}",
-                                                    var_name
-                                                ),
+                                                format!("[!] Variable not defined: {}", var_name),
                                                 help_more_string_lines,
                                             );
                                         }
@@ -2832,7 +2802,7 @@ fn macro_tool() {
                                                     add_macro_action(
                                                         &mut macro_actions,
                                                         format!(
-                                                            "[warning] Variable not defined: {}",
+                                                            "[!] Variable not defined: {}",
                                                             key_str
                                                         ),
                                                         help_more_string_lines,
@@ -2853,7 +2823,7 @@ fn macro_tool() {
                             _ => {
                                 add_macro_action(
                                     &mut macro_actions,
-                                    format!("[warning] Unknown command: {}", trimmed_line),
+                                    format!("[!] Unknown command: {}", trimmed_line),
                                     help_more_string_lines,
                                 );
                             }
