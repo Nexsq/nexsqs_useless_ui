@@ -159,6 +159,9 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_move &lt;x y&gt;</code><i> (moves cursor to the given coordinates)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_scroll &lt;amount&gt;</code><i> (scrolls the mouse wheel)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = value&gt;</code><i> (create a variable or update it [operators like +, - are valid])</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>jump &lt;line&gt;</code><i> (jumps to a given line)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>if &lt;condition {, }&gt;</code><i> (executes code inside brackets only if condition met)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>(, ) &lt;replays (blank for infinite)&gt;</code><i> (loops the code inside brackets)</i></span>
   <details><summary><span>example macro.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># add comments                           </code><br>
