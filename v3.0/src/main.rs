@@ -31,7 +31,7 @@ use sysinfo::System;
 use wmi::{COMLibrary, WMIConnection};
 
 fn version() -> String {
-    let version = "v3.0";
+    let version = "v3.17";
     version.to_string()
 }
 
@@ -1928,6 +1928,8 @@ fn macro_tool() {
             end_line: usize,
             replays_left: u64,
         }
+        let mut if_stack: Vec<bool> = Vec::new();
+        let mut skip_depth: u32 = 0;
         let mut loop_stack: Vec<LoopState> = Vec::new();
         let mut found_loops: Vec<(u64, u64)> = Vec::new();
         let mut completed_loops: Vec<(u64, u64)> = Vec::new();
@@ -1935,7 +1937,54 @@ fn macro_tool() {
         let mut macro_actions: Vec<String> = Vec::new();
         let help_more_string_lines = 1;
         let mut prev_state = HashMap::new();
+        let mut jumping = false;
+        let mut variables: HashMap<String, String> = HashMap::new();
         let mut enigo = Enigo::new(&EnigoSettings::default()).unwrap();
+        fn resolve_variable<'a>(
+            raw: &'a str,
+            variables: &'a HashMap<String, String>,
+        ) -> Result<&'a str, String> {
+            if let Some(var_name) = raw.strip_prefix('$') {
+                match variables.get(var_name) {
+                    Some(val) => Ok(val.as_str()),
+                    None => Err(var_name.to_string()),
+                }
+            } else {
+                Ok(raw)
+            }
+        }
+        fn evaluate_condition(
+            tokens: &[&str],
+            variables: &HashMap<String, String>,
+        ) -> Result<bool, String> {
+            if tokens.len() != 3 {
+                return Err("Condition must have exactly 3 parts".into());
+            }
+            let left = resolve_variable(tokens[0], variables)?;
+            let op = tokens[1];
+            let right = resolve_variable(tokens[2], variables)?;
+            if let (Ok(left_num), Ok(right_num)) = (left.parse::<i64>(), right.parse::<i64>()) {
+                match op {
+                    "=" | "==" => Ok(left_num == right_num),
+                    "!=" => Ok(left_num != right_num),
+                    "<" => Ok(left_num < right_num),
+                    ">" => Ok(left_num > right_num),
+                    "<=" => Ok(left_num <= right_num),
+                    ">=" => Ok(left_num >= right_num),
+                    _ => Err(format!("Unknown operator: {}", op)),
+                }
+            } else {
+                match op {
+                    "=" | "==" => Ok(left == right),
+                    "!=" => Ok(left != right),
+                    "<" => Ok(left < right),
+                    ">" => Ok(left > right),
+                    "<=" => Ok(left <= right),
+                    ">=" => Ok(left >= right),
+                    _ => Err(format!("Unknown operator: {}", op)),
+                }
+            }
+        }
         loop {
             let settings = Settings::load();
             if let Some((code, _)) = get_key() {
@@ -1974,6 +2023,7 @@ fn macro_tool() {
                 current_delay = 0;
                 if settings.macro_restart_when_pausing {
                     current_line = 0;
+                    variables.clear();
                     found_loops.clear();
                     completed_loops.clear();
                     loop_stack.clear();
@@ -1990,6 +2040,19 @@ fn macro_tool() {
                     if current_line < lines.len() {
                         let line = &lines[current_line];
                         let trimmed_line = line.trim();
+                        if skip_depth > 0 {
+                            let command_parts: Vec<&str> =
+                                trimmed_line.split_whitespace().collect();
+                            if !command_parts.is_empty() {
+                                if command_parts[0] == "if" && command_parts.last() == Some(&"{") {
+                                    skip_depth += 1;
+                                } else if command_parts[0] == "}" {
+                                    skip_depth -= 1;
+                                }
+                            }
+                            current_line += 1;
+                            continue;
+                        }
                         if trimmed_line.is_empty() {
                             current_line += 1;
                             continue;
@@ -2006,6 +2069,97 @@ fn macro_tool() {
                                             help_more_string_lines,
                                         );
                                     }
+                                }
+                            }
+                            Some(ref cmd) if cmd == "let" || cmd == "var" => {
+                                if command_parts.len() >= 4 && command_parts[2] == "=" {
+                                    let key = command_parts[1].to_string();
+                                    let expr = command_parts[3..].join(" ");
+                                    let mut tokens = Vec::new();
+                                    for token in expr.split_whitespace() {
+                                        if "+-*/".contains(token) {
+                                            tokens.push(token.to_string());
+                                        } else {
+                                            match resolve_variable(token, &variables) {
+                                                Ok(val) => tokens.push(val.to_string()),
+                                                Err(var_name) => {
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!(
+                                                            "[warning] Variable not defined: {}",
+                                                            var_name
+                                                        ),
+                                                        help_more_string_lines,
+                                                    );
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    let mut output: Option<i64> = None;
+                                    let mut op: Option<String> = None;
+                                    let mut math_failed = false;
+                                    for token in tokens {
+                                        if ["+", "-", "*", "/"].contains(&token.as_str()) {
+                                            op = Some(token);
+                                            continue;
+                                        }
+                                        match token.parse::<i64>() {
+                                            Ok(num) => {
+                                                if let Some(prev) = output {
+                                                    match op.as_deref() {
+                                                        Some("+") => output = Some(prev + num),
+                                                        Some("-") => output = Some(prev - num),
+                                                        Some("*") => output = Some(prev * num),
+                                                        Some("/") => output = Some(prev / num),
+                                                        _ => {}
+                                                    }
+                                                } else {
+                                                    output = Some(num);
+                                                }
+                                            }
+                                            Err(_) => {
+                                                math_failed = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if !math_failed && output.is_some() {
+                                        let val = output.unwrap().to_string();
+                                        variables.insert(key.clone(), val.clone());
+                                        add_macro_action(
+                                            &mut macro_actions,
+                                            format!("Set variable: {} = {}", key, val),
+                                            help_more_string_lines,
+                                        );
+                                    } else {
+                                        let fallback = match resolve_variable(&expr, &variables) {
+                                            Ok(val) => val.to_string(),
+                                            Err(var_name) => {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "[warning] Variable not defined: {}",
+                                                        var_name
+                                                    ),
+                                                    help_more_string_lines,
+                                                );
+                                                continue;
+                                            }
+                                        };
+                                        variables.insert(key.clone(), fallback.clone());
+                                        add_macro_action(
+                                            &mut macro_actions,
+                                            format!("Set variable: {} = {}", key, fallback),
+                                            help_more_string_lines,
+                                        );
+                                    }
+                                } else {
+                                    add_macro_action(
+                                        &mut macro_actions,
+                                        "[warning] Invalid variable usage".to_string(),
+                                        help_more_string_lines,
+                                    );
                                 }
                             }
                             Some(ref cmd) if cmd == "(" => {
@@ -2030,20 +2184,42 @@ fn macro_tool() {
                                     if top.end_line == 0 {
                                         top.end_line = current_line;
                                         if let Some(replays_str) = command_parts.get(1) {
-                                            if let Ok(parsed_replays) = replays_str.parse::<u64>() {
-                                                if parsed_replays > 1 {
-                                                    top.replays_left = parsed_replays - 1;
-                                                    current_line = top.start_line;
-                                                    passed_delay = Instant::now();
+                                            match resolve_variable(replays_str, &variables) {
+                                                Ok(resolved_val) => {
+                                                    if let Ok(parsed_replays) =
+                                                        resolved_val.parse::<u64>()
+                                                    {
+                                                        if parsed_replays > 1 {
+                                                            top.replays_left = parsed_replays - 1;
+                                                            current_line = top.start_line;
+                                                            passed_delay = Instant::now();
+                                                            add_macro_action(
+                                                                &mut macro_actions,
+                                                                format!(
+                                                                    "Looping back to line {} ({} replays left)",
+                                                                    top.start_line, top.replays_left
+                                                                ),
+                                                                help_more_string_lines,
+                                                            );
+                                                            continue;
+                                                        }
+                                                    } else {
+                                                        add_macro_action(
+                                                            &mut macro_actions,
+                                                            format!("[warning] Invalid replay count: {}", resolved_val),
+                                                            help_more_string_lines,
+                                                        );
+                                                    }
+                                                }
+                                                Err(var_name) => {
                                                     add_macro_action(
                                                         &mut macro_actions,
                                                         format!(
-                                                            "Looping back to line {} ({} replays left)",
-                                                            top.start_line, top.replays_left
+                                                            "[warning] Variable not defined: {}",
+                                                            var_name
                                                         ),
                                                         help_more_string_lines,
                                                     );
-                                                    continue;
                                                 }
                                             }
                                         } else {
@@ -2119,15 +2295,143 @@ fn macro_tool() {
                                     );
                                 }
                             }
-                            Some(ref cmd) if cmd == "delay" => {
-                                if let Some(delay_str) = command_parts.get(1) {
-                                    if let Ok(delay_ms) = delay_str.parse::<u64>() {
+                            Some(ref cmd) if cmd == "if" => {
+                                if skip_depth > 0 {
+                                    current_line += 1;
+                                    continue;
+                                }
+                                if command_parts.len() < 5 || command_parts.last() != Some(&"{") {
+                                    add_macro_action(
+                                        &mut macro_actions,
+                                        "[warning] Invalid if: syntax is 'if [var] [op] [value] {{'".to_string(),
+                                        help_more_string_lines,
+                                    );
+                                    current_line += 1;
+                                    continue;
+                                }
+                                let condition_tokens = &command_parts[1..command_parts.len() - 1];
+                                match evaluate_condition(condition_tokens, &variables) {
+                                    Ok(condition_met) => {
+                                        if_stack.push(condition_met);
+                                        if condition_met {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!("Condition met at line: {}", current_line),
+                                                help_more_string_lines,
+                                            );
+                                        } else {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "Condition not met at line: {}",
+                                                    current_line
+                                                ),
+                                                help_more_string_lines,
+                                            );
+                                            skip_depth = 1;
+                                        }
+                                    }
+                                    Err(e) => {
                                         add_macro_action(
                                             &mut macro_actions,
-                                            format!("Delay for {} ms", delay_ms),
+                                            format!("[warning] Condition error: {}", e),
                                             help_more_string_lines,
                                         );
-                                        current_delay = delay_ms;
+                                    }
+                                }
+                                current_line += 1;
+                                continue;
+                            }
+                            Some(ref cmd) if cmd == "}" => {
+                                if skip_depth > 0 {
+                                    skip_depth -= 1;
+                                    current_line += 1;
+                                    continue;
+                                }
+                                if if_stack.pop().is_none() {
+                                    add_macro_action(
+                                        &mut macro_actions,
+                                        "[warning] Unmatched '}'".to_string(),
+                                        help_more_string_lines,
+                                    );
+                                }
+                                current_line += 1;
+                                continue;
+                            }
+                            Some(ref cmd)
+                                if cmd == "jump"
+                                    || cmd == "jumpto"
+                                    || cmd == "jump_to"
+                                    || cmd == "goto"
+                                    || cmd == "go_to" =>
+                            {
+                                if let Some(line_str) = command_parts.get(1) {
+                                    match resolve_variable(line_str, &variables) {
+                                        Ok(resolved) => {
+                                            if let Ok(line) = resolved.parse::<usize>() {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!("Jumped to line: {}", line),
+                                                    help_more_string_lines,
+                                                );
+                                                jumping = true;
+                                                current_line = line
+                                            } else {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "[warning] Invalid line value: {}",
+                                                        resolved
+                                                    ),
+                                                    help_more_string_lines,
+                                                );
+                                            }
+                                        }
+                                        Err(var_name) => {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    var_name
+                                                ),
+                                                help_more_string_lines,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            Some(ref cmd) if cmd == "delay" || cmd == "sleep" || cmd == "wait" => {
+                                if let Some(delay_str) = command_parts.get(1) {
+                                    match resolve_variable(delay_str, &variables) {
+                                        Ok(resolved) => {
+                                            if let Ok(delay_ms) = resolved.parse::<u64>() {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!("Delay for {} ms", delay_ms),
+                                                    help_more_string_lines,
+                                                );
+                                                current_delay = delay_ms;
+                                            } else {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "[warning] Invalid delay value: {}",
+                                                        resolved
+                                                    ),
+                                                    help_more_string_lines,
+                                                );
+                                            }
+                                        }
+                                        Err(var_name) => {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    var_name
+                                                ),
+                                                help_more_string_lines,
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -2138,40 +2442,54 @@ fn macro_tool() {
                                     || cmd == "clickmouse"
                                     || cmd == "mouse" =>
                             {
-                                if let Some(button_str) = command_parts.get(1) {
-                                    match button_str.to_lowercase().as_str() {
-                                        "left" | "LMB" => {
-                                            enigo.button(Button::Left, Click).ok();
+                                if let Some(raw_button_str) = command_parts.get(1) {
+                                    match resolve_variable(raw_button_str, &variables) {
+                                        Ok(button_str) => {
+                                            match button_str.to_lowercase().as_str() {
+                                                "left" | "LMB" => {
+                                                    enigo.button(Button::Left, Click).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Clicked: left mouse button"),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                "right" | "RMB" => {
+                                                    enigo.button(Button::Right, Click).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Clicked: right mouse button"),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                "middle" | "MMB" => {
+                                                    enigo.button(Button::Middle, Click).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Clicked: middle mouse button"),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                _ => add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "[warning] Unknown mouse button: {}",
+                                                        button_str
+                                                    ),
+                                                    help_more_string_lines,
+                                                ),
+                                            }
+                                        }
+                                        Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!("Clicked left mouse button"),
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    var_name
+                                                ),
                                                 help_more_string_lines,
                                             );
                                         }
-                                        "right" | "RMB" => {
-                                            enigo.button(Button::Right, Click).ok();
-                                            add_macro_action(
-                                                &mut macro_actions,
-                                                format!("Clicked right mouse button"),
-                                                help_more_string_lines,
-                                            );
-                                        }
-                                        "middle" | "MMB" => {
-                                            enigo.button(Button::Middle, Click).ok();
-                                            add_macro_action(
-                                                &mut macro_actions,
-                                                format!("Clicked middle mouse button"),
-                                                help_more_string_lines,
-                                            );
-                                        }
-                                        _ => add_macro_action(
-                                            &mut macro_actions,
-                                            format!(
-                                                "[warning] Unknown mouse button: {}",
-                                                button_str
-                                            ),
-                                            help_more_string_lines,
-                                        ),
                                     }
                                 }
                             }
@@ -2185,40 +2503,54 @@ fn macro_tool() {
                                     || cmd == "hold_mouse"
                                     || cmd == "holdmouse" =>
                             {
-                                if let Some(button_str) = command_parts.get(1) {
-                                    match button_str.to_lowercase().as_str() {
-                                        "left" | "LMB" => {
-                                            enigo.button(Button::Left, Press).ok();
+                                if let Some(raw_button_str) = command_parts.get(1) {
+                                    match resolve_variable(raw_button_str, &variables) {
+                                        Ok(button_str) => {
+                                            match button_str.to_lowercase().as_str() {
+                                                "left" | "LMB" => {
+                                                    enigo.button(Button::Left, Press).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Pressed: left mouse button"),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                "right" | "RMB" => {
+                                                    enigo.button(Button::Right, Press).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Pressed: right mouse button"),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                "middle" | "MMB" => {
+                                                    enigo.button(Button::Middle, Press).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Pressed: middle mouse button"),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                _ => add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "[warning] Unknown mouse button: {}",
+                                                        button_str
+                                                    ),
+                                                    help_more_string_lines,
+                                                ),
+                                            }
+                                        }
+                                        Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!("Pressed left mouse button"),
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    var_name
+                                                ),
                                                 help_more_string_lines,
                                             );
                                         }
-                                        "right" | "RMB" => {
-                                            enigo.button(Button::Right, Press).ok();
-                                            add_macro_action(
-                                                &mut macro_actions,
-                                                format!("Pressed right mouse button"),
-                                                help_more_string_lines,
-                                            );
-                                        }
-                                        "middle" | "MMB" => {
-                                            enigo.button(Button::Middle, Press).ok();
-                                            add_macro_action(
-                                                &mut macro_actions,
-                                                format!("Pressed middle mouse button"),
-                                                help_more_string_lines,
-                                            );
-                                        }
-                                        _ => add_macro_action(
-                                            &mut macro_actions,
-                                            format!(
-                                                "[warning] Unknown mouse button: {}",
-                                                button_str
-                                            ),
-                                            help_more_string_lines,
-                                        ),
                                     }
                                 }
                             }
@@ -2228,40 +2560,54 @@ fn macro_tool() {
                                     || cmd == "release_mouse"
                                     || cmd == "releasemouse" =>
                             {
-                                if let Some(button_str) = command_parts.get(1) {
-                                    match button_str.to_lowercase().as_str() {
-                                        "left" | "LMB" => {
-                                            enigo.button(Button::Left, Release).ok();
+                                if let Some(raw_button_str) = command_parts.get(1) {
+                                    match resolve_variable(raw_button_str, &variables) {
+                                        Ok(button_str) => {
+                                            match button_str.to_lowercase().as_str() {
+                                                "left" | "LMB" => {
+                                                    enigo.button(Button::Left, Release).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Released: left mouse button"),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                "right" | "RMB" => {
+                                                    enigo.button(Button::Right, Release).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Released: right mouse button"),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                "middle" | "MMB" => {
+                                                    enigo.button(Button::Middle, Release).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Released: middle mouse button"),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                _ => add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "[warning] Unknown mouse button: {}",
+                                                        button_str
+                                                    ),
+                                                    help_more_string_lines,
+                                                ),
+                                            }
+                                        }
+                                        Err(var_name) => {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!("Released left mouse button"),
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    var_name
+                                                ),
                                                 help_more_string_lines,
                                             );
                                         }
-                                        "right" | "RMB" => {
-                                            enigo.button(Button::Right, Release).ok();
-                                            add_macro_action(
-                                                &mut macro_actions,
-                                                format!("Released right mouse button"),
-                                                help_more_string_lines,
-                                            );
-                                        }
-                                        "middle" | "MMB" => {
-                                            enigo.button(Button::Middle, Release).ok();
-                                            add_macro_action(
-                                                &mut macro_actions,
-                                                format!("Released middle mouse button"),
-                                                help_more_string_lines,
-                                            );
-                                        }
-                                        _ => add_macro_action(
-                                            &mut macro_actions,
-                                            format!(
-                                                "[warning] Unknown mouse button: {}",
-                                                button_str
-                                            ),
-                                            help_more_string_lines,
-                                        ),
                                     }
                                 }
                             }
@@ -2273,13 +2619,36 @@ fn macro_tool() {
                                     || cmd == "scroll" =>
                             {
                                 if let Some(length_str) = command_parts.get(1) {
-                                    if let Ok(length) = length_str.parse::<i32>() {
-                                        enigo.scroll(length, enigo::Axis::Vertical).ok();
-                                        add_macro_action(
-                                            &mut macro_actions,
-                                            format!("Scrolled by: {}", length),
-                                            help_more_string_lines,
-                                        );
+                                    match resolve_variable(length_str, &variables) {
+                                        Ok(resolved) => {
+                                            if let Ok(length) = resolved.parse::<i32>() {
+                                                enigo.scroll(length, enigo::Axis::Vertical).ok();
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!("Scrolled by: {}", length),
+                                                    help_more_string_lines,
+                                                );
+                                            } else {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "[warning] Invalid scroll value: {}",
+                                                        resolved
+                                                    ),
+                                                    help_more_string_lines,
+                                                );
+                                            }
+                                        }
+                                        Err(var_name) => {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    var_name
+                                                ),
+                                                help_more_string_lines,
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -2292,19 +2661,22 @@ fn macro_tool() {
                                     || cmd == "moveto"
                                     || cmd == "move" =>
                             {
-                                if let Some(x_str) = command_parts.get(1) {
-                                    if let Some(y_str) = command_parts.get(2) {
-                                        if let Ok(x) = x_str.parse::<i32>() {
-                                            if let Ok(y) = y_str.parse::<i32>() {
+                                if let (Some(x_raw), Some(y_raw)) =
+                                    (command_parts.get(1), command_parts.get(2))
+                                {
+                                    let x_val = resolve_variable(x_raw, &variables);
+                                    let y_val = resolve_variable(y_raw, &variables);
+                                    match (x_val, y_val) {
+                                        (Ok(x_str), Ok(y_str)) => {
+                                            if let (Ok(x), Ok(y)) =
+                                                (x_str.parse::<i32>(), y_str.parse::<i32>())
+                                            {
                                                 let mut relative = false;
                                                 if let Some(mode_str) = command_parts.get(3) {
-                                                    if mode_str.to_lowercase().as_str() == "rel"
-                                                        || mode_str.to_lowercase().as_str()
-                                                            == "relative"
-                                                        || mode_str.to_lowercase().as_str() == "r"
-                                                    {
-                                                        relative = true
-                                                    }
+                                                    let mode_str = mode_str.to_lowercase();
+                                                    relative = mode_str == "rel"
+                                                        || mode_str == "relative"
+                                                        || mode_str == "r";
                                                 }
                                                 if relative {
                                                     enigo.move_mouse(x, y, Coordinate::Rel).ok();
@@ -2321,62 +2693,123 @@ fn macro_tool() {
                                                         help_more_string_lines,
                                                     );
                                                 }
+                                            } else {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "[warning] Invalid coordinates: {}, {}",
+                                                        x_str, y_str
+                                                    ),
+                                                    help_more_string_lines,
+                                                );
                                             }
+                                        }
+                                        (Err(missing), _) | (_, Err(missing)) => {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    missing
+                                                ),
+                                                help_more_string_lines,
+                                            );
                                         }
                                     }
                                 }
                             }
                             Some(ref cmd) if cmd == "click" => {
-                                if let Some(key_str) = command_parts.get(1) {
-                                    if let Some(key) = get_key_from_str(key_str) {
-                                        enigo.key(key, Click).ok();
-                                        add_macro_action(
-                                            &mut macro_actions,
-                                            format!("Clicked key: {}", key_str),
-                                            help_more_string_lines,
-                                        );
-                                    } else {
-                                        add_macro_action(
-                                            &mut macro_actions,
-                                            format!("[warning] Unknown key: {}", key_str),
-                                            help_more_string_lines,
-                                        );
+                                if let Some(key_str_raw) = command_parts.get(1) {
+                                    match resolve_variable(key_str_raw, &variables) {
+                                        Ok(key_str) => {
+                                            if let Some(key) = get_key_from_str(key_str) {
+                                                enigo.key(key, Click).ok();
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!("Clicked key: {}", key_str),
+                                                    help_more_string_lines,
+                                                );
+                                            } else {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!("[warning] Unknown key: {}", key_str),
+                                                    help_more_string_lines,
+                                                );
+                                            }
+                                        }
+                                        Err(var_name) => {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    var_name
+                                                ),
+                                                help_more_string_lines,
+                                            );
+                                        }
                                     }
                                 }
                             }
                             Some(ref cmd) if cmd == "press" || cmd == "hold" => {
-                                if let Some(key_str) = command_parts.get(1) {
-                                    if let Some(key) = get_key_from_str(key_str) {
-                                        enigo.key(key, Press).ok();
-                                        add_macro_action(
-                                            &mut macro_actions,
-                                            format!("Pressed key: {}", key_str),
-                                            help_more_string_lines,
-                                        );
-                                    } else {
-                                        add_macro_action(
-                                            &mut macro_actions,
-                                            format!("[warning] Unknown key: {}", key_str),
-                                            help_more_string_lines,
-                                        );
+                                if let Some(key_str_raw) = command_parts.get(1) {
+                                    match resolve_variable(key_str_raw, &variables) {
+                                        Ok(key_str) => {
+                                            if let Some(key) = get_key_from_str(key_str) {
+                                                enigo.key(key, Press).ok();
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!("Pressed key: {}", key_str),
+                                                    help_more_string_lines,
+                                                );
+                                            } else {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!("[warning] Unknown key: {}", key_str),
+                                                    help_more_string_lines,
+                                                );
+                                            }
+                                        }
+                                        Err(var_name) => {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    var_name
+                                                ),
+                                                help_more_string_lines,
+                                            );
+                                        }
                                     }
                                 }
                             }
                             Some(ref cmd) if cmd == "release" => {
-                                if let Some(key_str) = command_parts.get(1) {
-                                    if let Some(key) = get_key_from_str(key_str) {
-                                        enigo.key(key, Release).ok();
-                                        add_macro_action(
-                                            &mut macro_actions,
-                                            format!("Released key: {}", key_str),
-                                            help_more_string_lines,
-                                        );
-                                    } else {
-                                        add_macro_action(
-                                            &mut macro_actions,
-                                            format!("[warning] Unknown key: {}", key_str),
-                                            help_more_string_lines,
-                                        );
+                                if let Some(key_str_raw) = command_parts.get(1) {
+                                    match resolve_variable(key_str_raw, &variables) {
+                                        Ok(key_str) => {
+                                            if let Some(key) = get_key_from_str(key_str) {
+                                                enigo.key(key, Release).ok();
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!("Released key: {}", key_str),
+                                                    help_more_string_lines,
+                                                );
+                                            } else {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!("[warning] Unknown key: {}", key_str),
+                                                    help_more_string_lines,
+                                                );
+                                            }
+                                        }
+                                        Err(var_name) => {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!(
+                                                    "[warning] Variable not defined: {}",
+                                                    var_name
+                                                ),
+                                                help_more_string_lines,
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -2384,12 +2817,36 @@ fn macro_tool() {
                                 if command_parts.len() > 1 {
                                     if let Some(mut text) = trimmed_line.strip_prefix("string") {
                                         text = text.trim();
-                                        enigo.text(&text).ok();
-                                        add_macro_action(
-                                            &mut macro_actions,
-                                            format!("Typed: {}", text),
-                                            help_more_string_lines,
-                                        );
+                                        if text.starts_with('$') {
+                                            let key_str = &text[1..];
+                                            match variables.get(key_str) {
+                                                Some(value) => {
+                                                    enigo.text(value).ok();
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!("Typed: {}", value),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                                None => {
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!(
+                                                            "[warning] Variable not defined: {}",
+                                                            key_str
+                                                        ),
+                                                        help_more_string_lines,
+                                                    );
+                                                }
+                                            }
+                                        } else {
+                                            enigo.text(&text).ok();
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!("Typed: {}", text),
+                                                help_more_string_lines,
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -2405,9 +2862,13 @@ fn macro_tool() {
                     print_macro_actions(&mut macro_actions);
                     passed_delay = Instant::now();
                     if current_line < lines.len() {
-                        current_line += 1
+                        if !jumping {
+                            current_line += 1
+                        }
+                        jumping = false
                     } else {
                         current_line = 0;
+                        variables.clear();
                         found_loops.clear();
                         completed_loops.clear();
                         loop_stack.clear();
