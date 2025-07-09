@@ -16,7 +16,6 @@ use inputbot::{KeybdKey, MouseButton};
 use rand::Rng;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::env;
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -27,11 +26,12 @@ use std::process::Command;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+use std::{env, usize};
 use sysinfo::System;
 use wmi::{COMLibrary, WMIConnection};
 
 fn version() -> String {
-    let version = "v3.17";
+    let version = "v3.18";
     version.to_string()
 }
 
@@ -1953,6 +1953,27 @@ fn macro_tool() {
                 Ok(raw)
             }
         }
+        fn resolve_static_variable(
+            static_name: &str,
+            current_line: usize,
+            enigo: &Enigo,
+        ) -> Option<String> {
+            match static_name {
+                "time_hour" => Some(Local::now().format("%H").to_string()),
+                "time_minute" => Some(Local::now().format("%M").to_string()),
+                "time_second" => Some(Local::now().format("%S").to_string()),
+                "mouse_x" => match enigo.location() {
+                    Ok((x, _)) => Some(x.to_string()),
+                    Err(_) => None,
+                },
+                "mouse_y" => match enigo.location() {
+                    Ok((_, y)) => Some(y.to_string()),
+                    Err(_) => None,
+                },
+                "current_line" => Some((current_line + 1).to_string()),
+                _ => None,
+            }
+        }
         fn evaluate_condition(
             tokens: &[&str],
             variables: &HashMap<String, String>,
@@ -2075,6 +2096,40 @@ fn macro_tool() {
                                 if command_parts.len() >= 4 && command_parts[2] == "=" {
                                     let key = command_parts[1].to_string();
                                     let expr = command_parts[3..].join(" ");
+                                    if command_parts[1].starts_with("static.") {
+                                        add_macro_action(
+                                            &mut macro_actions,
+                                            format!(
+                                                "[!] Cannot assign to static key: {}",
+                                                command_parts[1]
+                                            ),
+                                            help_more_string_lines,
+                                        );
+                                        current_line += 1;
+                                        continue;
+                                    }
+                                    if expr.starts_with("static.") {
+                                        if let Some(val) = resolve_static_variable(
+                                            &expr["static.".len()..],
+                                            current_line,
+                                            &enigo,
+                                        ) {
+                                            variables.insert(key.clone(), val.clone());
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!("Set variable: {} = {}", key, val),
+                                                help_more_string_lines,
+                                            );
+                                        } else {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!("[!] Unknown static variable: {}", expr),
+                                                help_more_string_lines,
+                                            );
+                                        }
+                                        current_line += 1;
+                                        continue;
+                                    }
                                     let mut tokens = Vec::new();
                                     for token in expr.split_whitespace() {
                                         if "+-*/".contains(token) {
@@ -2173,7 +2228,7 @@ fn macro_tool() {
                                     });
                                     add_macro_action(
                                         &mut macro_actions,
-                                        format!("Starting loop at line: {}", start_line),
+                                        format!("Starting loop at line: {}", start_line + 1),
                                         help_more_string_lines,
                                     );
                                 }
@@ -2197,7 +2252,7 @@ fn macro_tool() {
                                                                 &mut macro_actions,
                                                                 format!(
                                                                     "Looping back to line: {} ({} replays left)",
-                                                                    top.start_line, top.replays_left
+                                                                    top.start_line + 1, top.replays_left
                                                                 ),
                                                                 help_more_string_lines,
                                                             );
@@ -2233,7 +2288,7 @@ fn macro_tool() {
                                                 &mut macro_actions,
                                                 format!(
                                                     "Looping back to line: {} (infinite)",
-                                                    top.start_line
+                                                    top.start_line + 1
                                                 ),
                                                 help_more_string_lines,
                                             );
@@ -2257,7 +2312,7 @@ fn macro_tool() {
                                                 &mut macro_actions,
                                                 format!(
                                                     "Looping back to line: {} (infinite)",
-                                                    top.start_line
+                                                    top.start_line + 1
                                                 ),
                                                 help_more_string_lines,
                                             );
@@ -2271,7 +2326,7 @@ fn macro_tool() {
                                                     &mut macro_actions,
                                                     format!(
                                                         "Looping back to line: {} ({} replays left)",
-                                                        top.start_line, top.replays_left
+                                                        top.start_line + 1, top.replays_left
                                                     ),
                                                     help_more_string_lines,
                                                 );
@@ -2283,7 +2338,7 @@ fn macro_tool() {
                                                     &mut macro_actions,
                                                     format!(
                                                         "Completed loop from line: {}",
-                                                        finished.start_line
+                                                        finished.start_line + 1
                                                     ),
                                                     help_more_string_lines,
                                                 );
@@ -2319,7 +2374,10 @@ fn macro_tool() {
                                         if condition_met {
                                             add_macro_action(
                                                 &mut macro_actions,
-                                                format!("Condition met at line: {}", current_line),
+                                                format!(
+                                                    "Condition met at line: {}",
+                                                    current_line + 1
+                                                ),
                                                 help_more_string_lines,
                                             );
                                         } else {
@@ -2327,7 +2385,7 @@ fn macro_tool() {
                                                 &mut macro_actions,
                                                 format!(
                                                     "Condition not met at line: {}",
-                                                    current_line
+                                                    current_line + 1
                                                 ),
                                                 help_more_string_lines,
                                             );
@@ -2372,13 +2430,26 @@ fn macro_tool() {
                                     match resolve_variable(line_str, &variables) {
                                         Ok(resolved) => {
                                             if let Ok(line) = resolved.parse::<usize>() {
+                                                if line == 0 {
+                                                    add_macro_action(
+                                                        &mut macro_actions,
+                                                        format!(
+                                                            "[!] Invalid line value: {}",
+                                                            resolved
+                                                        ),
+                                                        help_more_string_lines,
+                                                    );
+                                                    current_line += 1;
+                                                    continue;
+                                                }
+                                                let line = line - 1;
                                                 add_macro_action(
                                                     &mut macro_actions,
                                                     format!("Jumped to line: {}", line),
                                                     help_more_string_lines,
                                                 );
                                                 jumping = true;
-                                                current_line = line
+                                                current_line = line;
                                             } else {
                                                 add_macro_action(
                                                     &mut macro_actions,
