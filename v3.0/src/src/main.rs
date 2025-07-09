@@ -2037,11 +2037,7 @@ fn macro_tool() {
                     }
                 }
             }
-            if macro_active != last_macro_active {
-                last_macro_active = macro_active;
-                render_macro_tool_macro(macro_path, macro_active);
-                print_macro_actions(&mut macro_actions);
-                current_delay = 0;
+            if macro_active && !last_macro_active {
                 if settings.macro_restart_when_pausing {
                     current_line = 0;
                     variables.clear();
@@ -2049,7 +2045,16 @@ fn macro_tool() {
                     completed_loops.clear();
                     loop_stack.clear();
                     active_loop_starts.clear();
+                    if_stack.clear();
+                    skip_depth = 0;
+                    jumping = false;
                 }
+            }
+            if macro_active != last_macro_active {
+                last_macro_active = macro_active;
+                render_macro_tool_macro(macro_path, macro_active);
+                print_macro_actions(&mut macro_actions);
+                current_delay = 0;
             }
             if macro_active {
                 if passed_delay.elapsed() >= Duration::from_millis(current_delay) {
