@@ -159,16 +159,28 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_move &lt;x y&gt;</code><i> (moves cursor to the given coordinates)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_scroll &lt;amount&gt;</code><i> (scrolls the mouse wheel)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = value&gt;</code><i> (create a variable or update it [operators like +, - are valid])</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>jump &lt;line&gt;</code><i> (jumps to a given line)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>if &lt;condition {, }&gt;</code><i> (executes code inside brackets only if condition met)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>(, ) &lt;replays (blank for infinite)&gt;</code><i> (loops the code inside brackets)</i></span>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>(, ) &lt;replays (blank for infinite)&gt;</code><i> (loops the code inside brackets)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = value&gt;</code><i> (create a variable or update it [operators like +, - are valid])</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.time_hour&gt;</code><i> (create a variable with current hour)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.time_minute&gt;</code><i> (create a variable with current minute)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.time_second&gt;</code><i> (create a variable with current second)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.mouse_x&gt;</code><i> (create a variable with current mouse x coordinate)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.mouse_y&gt;</code><i> (create a variable with current mouse y coordinate)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.current_line&gt;</code><i> (create a variable with current line)</i></span>
   <details><summary><span>example macro.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># add comments                           </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># create variables                       </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>let var = 3                              </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>let scnd = static.time_second            </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># use variables                          </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>string current second:                   </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>string $scnd                             </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># update variables                       </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>let var = $var + 2                       </code><br>
@@ -182,9 +194,6 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>press ctrl                               </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>click v                                  </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>release ctrl                             </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># use string to print text               </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>string text was pasted                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 5000                               </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
