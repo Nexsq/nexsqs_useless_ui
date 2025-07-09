@@ -2445,7 +2445,7 @@ fn macro_tool() {
                                                 let line = line - 1;
                                                 add_macro_action(
                                                     &mut macro_actions,
-                                                    format!("Jumped to line: {}", line),
+                                                    format!("Jumped to line: {}", line + 1),
                                                     help_more_string_lines,
                                                 );
                                                 jumping = true;
