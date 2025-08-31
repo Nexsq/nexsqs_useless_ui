@@ -68,7 +68,6 @@ fn main_options() -> Vec<String> {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Settings {
-    logo: String,
     color: String,
     dark_theme: bool,
     ping_delay: u64,
@@ -94,7 +93,6 @@ struct Settings {
 impl Settings {
     fn new() -> Self {
         Settings {
-            logo: "nexsq's useless ui".to_string(),
             color: "grey".to_string(),
             dark_theme: false,
             ping_delay: 500,
@@ -1947,9 +1945,15 @@ fn macro_tool() {
                 let trimmed = line.trim();
                 if !collecting
                     && (trimmed.eq_ignore_ascii_case("on_disabled [")
+                        || trimmed.eq_ignore_ascii_case("on_disable [")
                         || trimmed.eq_ignore_ascii_case("disabled [")
                         || trimmed.eq_ignore_ascii_case("on_off [")
                         || trimmed.eq_ignore_ascii_case("off ["))
+                    || trimmed.eq_ignore_ascii_case("on_disabled")
+                    || trimmed.eq_ignore_ascii_case("on_disable")
+                    || trimmed.eq_ignore_ascii_case("disabled")
+                    || trimmed.eq_ignore_ascii_case("on_off")
+                    || trimmed.eq_ignore_ascii_case("off")
                 {
                     collecting = true;
                     continue;
@@ -1965,6 +1969,23 @@ fn macro_tool() {
                 }
             }
             cmds
+        };
+        let mut callpoints: Vec<(String, u64)> = {
+            let file = File::open(dir.join(format!("{}.txt", macro_path))).unwrap();
+            let reader = BufReader::new(file);
+            let mut points = Vec::new();
+            for (i, line) in reader.lines().enumerate() {
+                if let Ok(line) = line {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with(':') {
+                        let name = trimmed[1..].trim().to_string();
+                        if !name.is_empty() {
+                            points.push((name, i as u64));
+                        }
+                    }
+                }
+            }
+            points
         };
         let mut on_disabled_executing = false;
         let help_more_string_lines = 1;
@@ -2139,9 +2160,15 @@ fn macro_tool() {
                             continue;
                         }
                         if trimmed_line.eq_ignore_ascii_case("on_disabled [")
+                            || trimmed_line.eq_ignore_ascii_case("on_disable [")
                             || trimmed_line.eq_ignore_ascii_case("disabled [")
                             || trimmed_line.eq_ignore_ascii_case("on_off [")
                             || trimmed_line.eq_ignore_ascii_case("off [")
+                            || trimmed_line.eq_ignore_ascii_case("on_disabled")
+                            || trimmed_line.eq_ignore_ascii_case("on_disable")
+                            || trimmed_line.eq_ignore_ascii_case("disabled")
+                            || trimmed_line.eq_ignore_ascii_case("on_off")
+                            || trimmed_line.eq_ignore_ascii_case("off")
                         {
                             current_line += 1;
                             while current_line < lines.len() {
@@ -2162,6 +2189,10 @@ fn macro_tool() {
                             current_line += 1;
                             continue;
                         }
+                        if trimmed_line.starts_with(':') {
+                            current_line += 1;
+                            continue;
+                        }
                         let command_parts: Vec<&str> = trimmed_line.split_whitespace().collect();
                         on_disabled_commands.clear();
                         on_disabled_commands = {
@@ -2172,9 +2203,15 @@ fn macro_tool() {
                             for line in reader.lines().filter_map(Result::ok) {
                                 let trimmed = line.trim();
                                 if !collecting && trimmed.eq_ignore_ascii_case("on_disabled [")
+                                    || trimmed.eq_ignore_ascii_case("on_disable [")
                                     || trimmed.eq_ignore_ascii_case("disabled [")
                                     || trimmed.eq_ignore_ascii_case("on_off [")
                                     || trimmed.eq_ignore_ascii_case("off [")
+                                    || trimmed.eq_ignore_ascii_case("on_disabled")
+                                    || trimmed.eq_ignore_ascii_case("on_disable")
+                                    || trimmed.eq_ignore_ascii_case("disabled")
+                                    || trimmed.eq_ignore_ascii_case("on_off")
+                                    || trimmed.eq_ignore_ascii_case("off")
                                 {
                                     collecting = true;
                                     continue;
@@ -2190,6 +2227,24 @@ fn macro_tool() {
                                 }
                             }
                             cmds
+                        };
+                        callpoints.clear();
+                        callpoints = {
+                            let file = File::open(dir.join(format!("{}.txt", macro_path))).unwrap();
+                            let reader = BufReader::new(file);
+                            let mut points = Vec::new();
+                            for (i, line) in reader.lines().enumerate() {
+                                if let Ok(line) = line {
+                                    let trimmed = line.trim();
+                                    if trimmed.starts_with(':') {
+                                        let name = trimmed[1..].trim().to_string();
+                                        if !name.is_empty() {
+                                            points.push((name, i as u64));
+                                        }
+                                    }
+                                }
+                            }
+                            points
                         };
                         match command_parts.get(0).map(|&s| s.to_lowercase()) {
                             Some(ref cmd) if cmd == "#" => {
@@ -2329,7 +2384,7 @@ fn macro_tool() {
                                     );
                                 }
                             }
-                            Some(ref cmd) if cmd == "loop (" || cmd == "(" => {
+                            Some(ref cmd) if cmd == "loop" || cmd == "(" => {
                                 if !active_loop_starts.contains(&current_line) {
                                     active_loop_starts.insert(current_line);
                                     let start_line = current_line;
@@ -2566,6 +2621,53 @@ fn macro_tool() {
                                                 add_macro_action(
                                                     &mut macro_actions,
                                                     format!("[!] Invalid line value: {}", resolved),
+                                                    help_more_string_lines,
+                                                );
+                                            }
+                                        }
+                                        Err(var_name) => {
+                                            add_macro_action(
+                                                &mut macro_actions,
+                                                format!("[!] Variable not defined: {}", var_name),
+                                                help_more_string_lines,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            Some(ref cmd)
+                                if cmd == "call"
+                                    || cmd == "callpoint"
+                                    || cmd == "call_to"
+                                    || cmd == "checkpoint"
+                                    || cmd == "point" =>
+                            {
+                                if let Some(name) = command_parts.get(1) {
+                                    match resolve_variable(name, &variables) {
+                                        Ok(resolved) => {
+                                            if let Some((_, line)) =
+                                                callpoints.iter().find(|(cp_name, _)| {
+                                                    cp_name.eq_ignore_ascii_case(&resolved)
+                                                })
+                                            {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "Calling point '{}' at line {}",
+                                                        resolved,
+                                                        line + 1
+                                                    ),
+                                                    help_more_string_lines,
+                                                );
+                                                jumping = true;
+                                                current_line = *line as usize;
+                                            } else {
+                                                add_macro_action(
+                                                    &mut macro_actions,
+                                                    format!(
+                                                        "[!] Callpoint not found: {}",
+                                                        resolved
+                                                    ),
                                                     help_more_string_lines,
                                                 );
                                             }
