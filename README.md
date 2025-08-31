@@ -160,8 +160,9 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_scroll &lt;amount&gt;</code><i> (scrolls the mouse wheel)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>jump &lt;line&gt;</code><i> (jumps to a given line)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>if &lt;condition {, }&gt;</code><i> (executes code inside brackets only if condition met)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>(, ) &lt;replays (blank for infinite)&gt;</code><i> (loops the code inside brackets)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>if condition { &lt;}&gt;</code><i> (executes code inside brackets only if condition met)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>loop ( &lt;) replays (blank for infinite)&gt;</code><i> (loops the code inside brackets)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>on_disabled [&lt;]&gt;</code><i> (executes code inside brackets when macro switches off)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = value&gt;</code><i> (create a variable or update it [operators like +, - are valid])</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.time_hour&gt;</code><i> (create a variable with current hour)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.time_minute&gt;</code><i> (create a variable with current minute)</i><br>
@@ -169,6 +170,7 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.mouse_x&gt;</code><i> (create a variable with current mouse x coordinate)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.mouse_y&gt;</code><i> (create a variable with current mouse y coordinate)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.current_line&gt;</code><i> (create a variable with current line)</i></span>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.random&gt;</code><i> (create a variable with a random digit from 0 to 9)</i></span>
   <details><summary><span>example macro.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># add comments                           </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
@@ -211,15 +213,20 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>delay 2500                               </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># loops are possible                     </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>(                                        </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>loop (                                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  delay 1000                             </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  # nested loops are also possible       </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  (                                      </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  loop (                                 </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>    delay 1000                           </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  # 5 for five replays                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  ) 5                                    </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># leave blank after ")" for infinite loop</code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>)                                        </code><br></h6></details>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>)                                        </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>on_disabled [                            </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  # bye                                  </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>  # bye                                  </code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>]                                        </code><br></h6></details>
   <h4>&nbsp;• tetris</h4>
 
   <span>&nbsp;&nbsp;&nbsp;find out yourself ;)</span>
