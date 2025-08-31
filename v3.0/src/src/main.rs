@@ -31,7 +31,7 @@ use sysinfo::System;
 use wmi::{COMLibrary, WMIConnection};
 
 fn version() -> String {
-    let version = "v3.18";
+    let version = "v3.19";
     version.to_string()
 }
 
@@ -68,6 +68,7 @@ fn main_options() -> Vec<String> {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Settings {
+    logo: String,
     color: String,
     dark_theme: bool,
     ping_delay: u64,
@@ -93,6 +94,7 @@ struct Settings {
 impl Settings {
     fn new() -> Self {
         Settings {
+            logo: "nexsq's useless ui".to_string(),
             color: "grey".to_string(),
             dark_theme: false,
             ping_delay: 500,
@@ -1921,6 +1923,7 @@ fn macro_tool() {
         let (mut last_width, mut last_height) = terminal::size().unwrap();
         let mut needs_rendering = true;
         let mut current_line = 0;
+        let mut old_current_line = 0;
         let mut passed_delay = Instant::now();
         let mut current_delay = 0;
         struct LoopState {
@@ -1935,6 +1938,35 @@ fn macro_tool() {
         let mut completed_loops: Vec<(u64, u64)> = Vec::new();
         let mut active_loop_starts = HashSet::new();
         let mut macro_actions: Vec<String> = Vec::new();
+        let mut on_disabled_commands: Vec<String> = {
+            let file = File::open(dir.join(format!("{}.txt", macro_path))).unwrap();
+            let reader = BufReader::new(file);
+            let mut cmds = Vec::new();
+            let mut collecting = false;
+            for line in reader.lines().filter_map(Result::ok) {
+                let trimmed = line.trim();
+                if !collecting
+                    && (trimmed.eq_ignore_ascii_case("on_disabled [")
+                        || trimmed.eq_ignore_ascii_case("disabled [")
+                        || trimmed.eq_ignore_ascii_case("on_off [")
+                        || trimmed.eq_ignore_ascii_case("off ["))
+                {
+                    collecting = true;
+                    continue;
+                }
+                if collecting {
+                    if trimmed == "]" {
+                        break;
+                    }
+                    if trimmed == "[" || trimmed.is_empty() {
+                        continue;
+                    }
+                    cmds.push(trimmed.to_string());
+                }
+            }
+            cmds
+        };
+        let mut on_disabled_executing = false;
         let help_more_string_lines = 1;
         let mut prev_state = HashMap::new();
         let mut jumping = false;
@@ -1971,6 +2003,10 @@ fn macro_tool() {
                     Err(_) => None,
                 },
                 "current_line" => Some((current_line + 1).to_string()),
+                "random" => {
+                    let mut rng = rand::thread_rng();
+                    Some(rng.gen_range(0..10).to_string())
+                }
                 _ => None,
             }
         }
@@ -2022,10 +2058,14 @@ fn macro_tool() {
                     KeyCode::Char('q') | KeyCode::Char('Q') => return,
                     KeyCode::Esc => process::exit(0),
                     KeyCode::Enter => {
-                        macro_active = !macro_active;
+                        if !on_disabled_executing {
+                            macro_active = !macro_active
+                        }
                     }
                     KeyCode::Char(' ') => {
-                        macro_active = !macro_active;
+                        if !on_disabled_executing {
+                            macro_active = !macro_active
+                        }
                     }
                     _ => {}
                 }
@@ -2033,13 +2073,16 @@ fn macro_tool() {
             if let Some(code) = background_get_key(&mut prev_state) {
                 if let Some(hotkey_enum) = string_to_key(&settings.macro_hotkey) {
                     if code == hotkey_enum {
-                        macro_active = !macro_active;
+                        if !on_disabled_executing {
+                            macro_active = !macro_active
+                        }
                     }
                 }
             }
             if macro_active && !last_macro_active {
                 if settings.macro_restart_when_pausing {
                     current_line = 0;
+                    current_delay = 0;
                     variables.clear();
                     found_loops.clear();
                     completed_loops.clear();
@@ -2051,20 +2094,32 @@ fn macro_tool() {
                 }
             }
             if macro_active != last_macro_active {
+                if !macro_active {
+                    if !on_disabled_commands.is_empty() {
+                        on_disabled_executing = true;
+                        old_current_line = current_line;
+                        current_line = 0;
+                        jumping = false;
+                    }
+                }
                 last_macro_active = macro_active;
                 render_macro_tool_macro(macro_path, macro_active);
                 print_macro_actions(&mut macro_actions);
                 current_delay = 0;
             }
-            if macro_active {
+            if macro_active || on_disabled_executing {
                 if passed_delay.elapsed() >= Duration::from_millis(current_delay) {
                     current_delay = 0;
                     let file = File::open(dir.join(format!("{}.txt", macro_path)))
                         .expect("Failed to open macro file");
                     let reader = BufReader::new(file);
-                    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+                    let lines: Vec<String> = if on_disabled_executing {
+                        on_disabled_commands.clone()
+                    } else {
+                        reader.lines().filter_map(Result::ok).collect()
+                    };
                     if current_line < lines.len() {
-                        let line = &lines[current_line];
+                        let line: &str = &lines[current_line];
                         let trimmed_line = line.trim();
                         if skip_depth > 0 {
                             let command_parts: Vec<&str> =
@@ -2083,7 +2138,59 @@ fn macro_tool() {
                             current_line += 1;
                             continue;
                         }
+                        if trimmed_line.eq_ignore_ascii_case("on_disabled [")
+                            || trimmed_line.eq_ignore_ascii_case("disabled [")
+                            || trimmed_line.eq_ignore_ascii_case("on_off [")
+                            || trimmed_line.eq_ignore_ascii_case("off [")
+                        {
+                            current_line += 1;
+                            while current_line < lines.len() {
+                                if lines[current_line].trim() == "]" {
+                                    current_line += 1;
+                                    break;
+                                }
+                                current_line += 1;
+                            }
+                            continue;
+                        }
+                        if trimmed_line == "]" {
+                            add_macro_action(
+                                &mut macro_actions,
+                                "[!] Unmatched ']'".to_string(),
+                                help_more_string_lines,
+                            );
+                            current_line += 1;
+                            continue;
+                        }
                         let command_parts: Vec<&str> = trimmed_line.split_whitespace().collect();
+                        on_disabled_commands.clear();
+                        on_disabled_commands = {
+                            let file = File::open(dir.join(format!("{}.txt", macro_path))).unwrap();
+                            let reader = BufReader::new(file);
+                            let mut cmds = Vec::new();
+                            let mut collecting = false;
+                            for line in reader.lines().filter_map(Result::ok) {
+                                let trimmed = line.trim();
+                                if !collecting && trimmed.eq_ignore_ascii_case("on_disabled [")
+                                    || trimmed.eq_ignore_ascii_case("disabled [")
+                                    || trimmed.eq_ignore_ascii_case("on_off [")
+                                    || trimmed.eq_ignore_ascii_case("off [")
+                                {
+                                    collecting = true;
+                                    continue;
+                                }
+                                if collecting {
+                                    if trimmed == "]" {
+                                        break;
+                                    }
+                                    if trimmed == "[" || trimmed.is_empty() {
+                                        continue;
+                                    }
+                                    cmds.push(trimmed.to_string());
+                                }
+                            }
+                            cmds
+                        };
                         match command_parts.get(0).map(|&s| s.to_lowercase()) {
                             Some(ref cmd) if cmd == "#" => {
                                 if command_parts.len() > 1 {
@@ -2222,7 +2329,7 @@ fn macro_tool() {
                                     );
                                 }
                             }
-                            Some(ref cmd) if cmd == "(" => {
+                            Some(ref cmd) if cmd == "loop (" || cmd == "(" => {
                                 if !active_loop_starts.contains(&current_line) {
                                     active_loop_starts.insert(current_line);
                                     let start_line = current_line;
@@ -2919,6 +3026,10 @@ fn macro_tool() {
                         completed_loops.clear();
                         loop_stack.clear();
                         active_loop_starts.clear();
+                        if on_disabled_executing {
+                            on_disabled_executing = false;
+                            current_line = old_current_line;
+                        }
                         if !settings.macro_loop {
                             macro_active = false;
                         }
