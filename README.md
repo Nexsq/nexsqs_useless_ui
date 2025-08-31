@@ -160,6 +160,8 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>mouse_scroll &lt;amount&gt;</code><i> (scrolls the mouse wheel)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>string &lt;text&gt;</code><i> (prints a given text)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>jump &lt;line&gt;</code><i> (jumps to a given line)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>: &lt;callpoint&gt;</code><i> (sets a callpoint)</i><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>call &lt;callpoint&gt;</code><i> (jumps to a given callpoint)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>if condition { &lt;}&gt;</code><i> (executes code inside brackets only if condition met)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>loop ( &lt;) replays (blank for infinite)&gt;</code><i> (loops the code inside brackets)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>on_disabled [&lt;]&gt;</code><i> (executes code inside brackets when macro switches off)</i><br>
@@ -182,7 +184,6 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># use variables                          </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>string current second:                   </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>string $scnd                             </code><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>                                         </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># update variables                       </code><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>let var = $var + 2                       </code><br>
