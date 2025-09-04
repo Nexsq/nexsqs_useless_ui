@@ -171,7 +171,7 @@
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.time_second&gt;</code><i> (create a variable with current second)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.mouse_x&gt;</code><i> (create a variable with current mouse x coordinate)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.mouse_y&gt;</code><i> (create a variable with current mouse y coordinate)</i><br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.current_line&gt;</code><i> (create a variable with current line)</i></span>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.current_line&gt;</code><i> (create a variable with current line)</i><br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <code>let &lt;name = static.random&gt;</code><i> (create a variable with a random digit from 0 to 9)</i></span>
   <details><summary><span>example macro.txt:</span></summary><br>
       <h6>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code># add comments                           </code><br>
