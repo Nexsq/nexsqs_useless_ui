@@ -43,6 +43,7 @@ set "settings[9]=auto_start"
 set "default=0"
 
 powershell -noprofile -executionpolicy remotesigned "iex ((gc '%~f0') -join \"`n\")"
+exit /b
 
 : end batch / begin PowerShell hybrid chimera #>
 
@@ -62,7 +63,7 @@ if (-not $darkTheme) {
 }
 $bg = $Host.UI.RawUI.BackgroundColor
 
-$name = "Nexsq's Useless UI v2.12"
+$name = "Nexsq's Useless UI v2.0"
 $logo = @(
 "                     +-.         "
 "                    -ssooo.      "
