@@ -14,6 +14,7 @@ use enigo::{
 use inputbot::KeybdKey::*;
 use inputbot::{KeybdKey, MouseButton};
 use rand::Rng;
+use rodio::{mixer::Mixer, source::SineWave, OutputStreamBuilder, Sink, Source};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -31,7 +32,7 @@ use sysinfo::System;
 use wmi::{COMLibrary, WMIConnection};
 
 fn version() -> String {
-    let version = "v3.19";
+    let version = "v3.20";
     version.to_string()
 }
 
@@ -78,6 +79,7 @@ struct Settings {
     macro_hotkey: String,
     macro_restart_when_pausing: bool,
     macro_loop: bool,
+    macro_sounds: bool,
     tetris_use_colors: bool,
     tetris_show_ghost: bool,
     tetris_speed_multiplier: f64,
@@ -103,6 +105,7 @@ impl Settings {
             macro_hotkey: "None".to_string(),
             macro_restart_when_pausing: false,
             macro_loop: true,
+            macro_sounds: false,
             tetris_use_colors: false,
             tetris_show_ghost: true,
             tetris_speed_multiplier: 1.0,
@@ -202,6 +205,10 @@ impl Settings {
     }
     fn set_macro_loop(&mut self, new_value: bool) {
         self.macro_loop = new_value;
+        self.save();
+    }
+    fn set_macro_sounds(&mut self, new_value: bool) {
+        self.macro_sounds = new_value;
         self.save();
     }
     fn set_tetris_use_colors(&mut self, new_value: bool) {
@@ -398,6 +405,24 @@ fn clear() {
             .status()
             .expect("Failed to clear the terminal");
     }
+}
+
+static AUDIO_STREAM: LazyLock<rodio::stream::OutputStream> = LazyLock::new(|| {
+    let mut s =
+        OutputStreamBuilder::open_default_stream().expect("failed to open default audio stream");
+    s.log_on_drop(false);
+    s
+});
+
+static AUDIO_MIXER: LazyLock<Mixer> = LazyLock::new(|| AUDIO_STREAM.mixer().clone());
+
+pub fn beep(freq: f32, secs: f32) {
+    let sink = Sink::connect_new(&*AUDIO_MIXER);
+    let src = SineWave::new(freq)
+        .take_duration(Duration::from_secs_f32(secs))
+        .amplify(0.20);
+    sink.append(src);
+    sink.detach();
 }
 
 fn render_top(current_option: &str, new_option: Option<&str>, new_option_selected: bool) -> String {
@@ -1187,6 +1212,12 @@ fn micro_macro() {
                             format!("{}{} ", display_delay, delay_unit)
                         } else if menu_options[i] == "hotkey" {
                             settings.micro_macro_hotkey.to_string() + " "
+                        } else if menu_options[i] == "sounds" {
+                            if settings.macro_sounds {
+                                "1 ".to_string()
+                            } else {
+                                "0 ".to_string()
+                            }
                         } else {
                             " ".to_string()
                         },
@@ -1217,7 +1248,8 @@ fn micro_macro() {
             execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
-        let micro_macro_settings_menu_options = ["key", "delay", "custom_delay", "hotkey"];
+        let micro_macro_settings_menu_options =
+            ["key", "delay", "custom_delay", "hotkey", "sounds"];
         let mut micro_macro_settings_menu_selected = 0;
         let micro_macro_keys = ["F15", "RandomNum", "Enter", "Space", "E", "F", "LMB", "RMB"];
         let mut micro_macro_key_index = micro_macro_keys
@@ -1319,6 +1351,7 @@ fn micro_macro() {
                                 micro_macro_hotkey_index = micro_macro_hotkeys.len() - 1
                             }
                         }
+                        4 => settings.set_macro_sounds(!settings.macro_sounds),
                         _ => {}
                     },
                     KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
@@ -1371,6 +1404,7 @@ fn micro_macro() {
                             micro_macro_hotkey_index =
                                 (micro_macro_hotkey_index + 1) % micro_macro_hotkeys.len()
                         }
+                        4 => settings.set_macro_sounds(!settings.macro_sounds),
                         _ => {}
                     },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
@@ -1433,6 +1467,13 @@ fn micro_macro() {
             }
         }
         if micro_macro_active != last_micro_macro_active {
+            if settings.macro_sounds {
+                if micro_macro_active {
+                    beep(330.0, 0.2);
+                } else {
+                    beep(220.0, 0.2);
+                }
+            }
             last_micro_macro_active = micro_macro_active;
             render_micro_macro(micro_macro_active);
         }
@@ -1630,6 +1671,12 @@ fn macro_tool() {
                             }
                         } else if menu_options[i] == "hotkey" {
                             settings.macro_hotkey.to_string() + " "
+                        } else if menu_options[i] == "sounds" {
+                            if settings.macro_sounds {
+                                "1 ".to_string()
+                            } else {
+                                "0 ".to_string()
+                            }
                         } else {
                             " ".to_string()
                         },
@@ -1660,7 +1707,7 @@ fn macro_tool() {
             execute!(stdout, crossterm::terminal::EndSynchronizedUpdate).unwrap();
             stdout.flush().unwrap();
         }
-        let macro_settings_menu_options = ["loop", "restart_when_pausing", "hotkey"];
+        let macro_settings_menu_options = ["loop", "restart_when_pausing", "hotkey", "sounds"];
         let mut macro_settings_menu_selected = 0;
         let macro_hotkeys = [
             "None", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "X1Mouse", "X2Mouse",
@@ -1699,6 +1746,7 @@ fn macro_tool() {
                                 macro_hotkey_index = macro_hotkeys.len() - 1
                             }
                         }
+                        3 => settings.set_macro_sounds(!settings.macro_sounds),
                         _ => {}
                     },
                     KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
@@ -1718,6 +1766,7 @@ fn macro_tool() {
                             );
                             macro_hotkey_index = (macro_hotkey_index + 1) % macro_hotkeys.len()
                         }
+                        3 => settings.set_macro_sounds(!settings.macro_sounds),
                         _ => {}
                     },
                     KeyCode::Tab | KeyCode::Char('d') | KeyCode::Char('D') => settings_menu(),
@@ -2080,12 +2129,26 @@ fn macro_tool() {
                     KeyCode::Esc => process::exit(0),
                     KeyCode::Enter => {
                         if !on_disabled_executing {
-                            macro_active = !macro_active
+                            macro_active = !macro_active;
+                            if settings.macro_sounds {
+                                if macro_active {
+                                    beep(330.0, 0.2);
+                                } else {
+                                    beep(220.0, 0.2);
+                                }
+                            }
                         }
                     }
                     KeyCode::Char(' ') => {
                         if !on_disabled_executing {
-                            macro_active = !macro_active
+                            macro_active = !macro_active;
+                            if settings.macro_sounds {
+                                if macro_active {
+                                    beep(330.0, 0.2);
+                                } else {
+                                    beep(220.0, 0.2);
+                                }
+                            }
                         }
                     }
                     _ => {}
@@ -2095,7 +2158,14 @@ fn macro_tool() {
                 if let Some(hotkey_enum) = string_to_key(&settings.macro_hotkey) {
                     if code == hotkey_enum {
                         if !on_disabled_executing {
-                            macro_active = !macro_active
+                            macro_active = !macro_active;
+                            if settings.macro_sounds {
+                                if macro_active {
+                                    beep(330.0, 0.2);
+                                } else {
+                                    beep(220.0, 0.2);
+                                }
+                            }
                         }
                     }
                 }
@@ -2587,11 +2657,7 @@ fn macro_tool() {
                                 continue;
                             }
                             Some(ref cmd)
-                                if cmd == "jump"
-                                    || cmd == "jumpto"
-                                    || cmd == "jump_to"
-                                    || cmd == "goto"
-                                    || cmd == "go_to" =>
+                                if cmd == "jump" || cmd == "jumpto" || cmd == "jump_to" =>
                             {
                                 if let Some(line_str) = command_parts.get(1) {
                                     match resolve_variable(line_str, &variables) {
@@ -2640,7 +2706,9 @@ fn macro_tool() {
                                     || cmd == "callpoint"
                                     || cmd == "call_to"
                                     || cmd == "checkpoint"
-                                    || cmd == "point" =>
+                                    || cmd == "point"
+                                    || cmd == "goto"
+                                    || cmd == "go_to" =>
                             {
                                 if let Some(name) = command_parts.get(1) {
                                     match resolve_variable(name, &variables) {
@@ -5928,14 +5996,14 @@ fn main() {
             shift_held = modifiers.contains(KeyModifiers::SHIFT);
             needs_rendering = true;
             match (code, modifiers) {
-                (KeyCode::Up, KeyModifiers::SHIFT) => {
+                (KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W'), KeyModifiers::SHIFT) => {
                     if menu_selected > 0 {
                         settings.options.swap(menu_selected, menu_selected - 1);
                         menu_selected -= 1;
                         settings.save();
                     }
                 }
-                (KeyCode::Down, KeyModifiers::SHIFT) => {
+                (KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S'), KeyModifiers::SHIFT) => {
                     if menu_selected < settings.options.len() - 1 {
                         settings.options.swap(menu_selected, menu_selected + 1);
                         menu_selected += 1;
