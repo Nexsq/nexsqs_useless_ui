@@ -1,5 +1,5 @@
 <h1>nexsqs_useless_ui</h1>
-<h5>A completely useless terminal UI originally in chimera powershell, now in rust.</h5>
+<h5>A not so completely useless terminal UI originally in chimera powershell, now in rust.</h5>
 <details>
   <summary><h4>Version 1.0</h4></summary>
   <h6>&nbsp;(written in chimera powershell)</h6>
