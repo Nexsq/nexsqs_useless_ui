@@ -1,3 +1,5 @@
+
+https://github.com/user-attachments/assets/08905528-709e-404e-8448-937f108194b1
 <h1>nexsqs_useless_ui</h1>
 <h5>A not so completely useless terminal UI originally in chimera powershell, now in rust.</h5>
 <details>
@@ -235,4 +237,4 @@
     <span>&nbsp;&nbsp;&nbsp;find out yourself ;)</span>
 </details>
 
-![Your NUUI your STYLE](https://github.com/user-attachments/assets/948c7316-b23a-4cb6-808e-9d37f48dae81)
+https://github.com/user-attachments/assets/df9e3095-a207-4792-9c2d-73ece65d0f4e
